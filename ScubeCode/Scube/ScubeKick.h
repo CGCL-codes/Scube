@@ -44,7 +44,6 @@ private:
         fp_type fp;
     };
     int n = 0;
-    int writeflag = 0;
     const uint8_t kick_times = 10;
     const uint32_t slot_num = 1000;
     basket* value = NULL;
@@ -79,22 +78,20 @@ private:
     bool fp_insert(key_type key_s, key_type key_d, w_type w);
     bool fp_insert(key_type key_s, key_type key_d, w_type w, double& kick_time, double& dector_query_time);
 };
-ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int degSlothash):
+ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num):
 Scube(width, depth, fingerprint_length), kick_times(kick_times) 
 {
 #if defined(DEBUG)
-    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length << ", k_width: " << k_width << ", k_depth: " << k_depth << ", kick_times: " << kick_times << ", slot_num: " << slot_num << ", FLAG: " << degSlothash << ")" << endl;
+    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length << ", k_width: " << k_width << ", k_depth: " << k_depth << ", kick_times: " << kick_times << ", slot_num: " << slot_num << ")" << endl;
 #endif
     s_extend = 0, d_extend = 0, max_kick_extend = 0;
-    // this->degDetector = new DegDetectSlot(width, depth, threshold, slot_num, degSlothash);
+    // this->degDetector = new DegDetectorSlot(width, depth, threshold, slot_num);
     this->degDetector = new DegDetectorSlot(width, depth, k_width, k_depth, slot_num);
-    if (degSlothash > 0)
-        writeflag = 1;
     // this->value = new basket[width * depth];
     posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
     memset(value, 0, sizeof(basket) * width * depth);
 }
-    
+
 ScubeKick::~ScubeKick()
 {
 #if defined(DEBUG)

@@ -13,7 +13,7 @@ gss : gss.o
 
 
 scube.o : ScubeCode/main.cpp
-	$(CXX) -o scube.o -c ScubeCode/main.cpp -D RE -D SR8 -D H0 -D ROOM2 $(CFLAGS)
+	$(CXX) -o scube.o -c ScubeCode/main.cpp -D SR8 -D H0 -D ROOM2 $(CFLAGS)
 tcm.o : BaselineCode/TCM.cpp
 	$(CXX) -o tcm.o -c BaselineCode/TCM.cpp $(CFLAGS)
 gss.o : BaselineCode/GSS.cpp

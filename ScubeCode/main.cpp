@@ -19,8 +19,6 @@ int main(int argc, char* argv[]) {
 #endif
 	int width, depth, fingerprint_length;	// Scube parameters
 	uint16_t k_width, k_depth;				// Scube parameters
-	double threshold = 0.8;					// Scube parameters
-	uint32_t arr_nums = 0;					// Scube parameters
 	uint32_t slot_nums, kick_times = 10;	// Scube parameters
 
 	string head_scube_addr = "ScubeKick_";
@@ -39,9 +37,7 @@ int main(int argc, char* argv[]) {
 	int node_query_flag = 0;					// 1-node_out_query, 2-node_in_query
 	int input_type = 0;
 	bool timetest = false;
-	int degdetect = 0;
 	int window = 10;
-	int degSlotHash = 0;
 	int data_interval = 100;
 	bool ins_bd = false;
 	
@@ -56,26 +52,25 @@ int main(int argc, char* argv[]) {
 		if (strcmp(argv[i], "-fplength") == 0) {
 			fingerprint_length = atoi(argv[++i]);
 		}
-		if (strcmp(argv[i], "-edgefrequence") == 0) {
+		if (strcmp(argv[i], "-edgeweight") == 0) {
 			efflag = 1;
 		}
 		if (strcmp(argv[i], "-edgeexistence") == 0) {
 			eeflag = 1;
 		}
-		if (strcmp(argv[i], "-nodefrequence") == 0) {
+		if (strcmp(argv[i], "-nodeinweight") == 0) {
 			nfflag = 1;
+			node_query_flag = 2;
+		}
+		if (strcmp(argv[i], "-nodeoutweight") == 0) {
+			nfflag = 1;
+			node_query_flag = 1;
 		}
 		if (strcmp(argv[i], "-reachability") == 0) {
 			rpqflag = 1;
 		}
 		if (strcmp(argv[i], "-rpq") == 0) {
 			rpq = 1;
-		}
-		if (strcmp(argv[i], "-out") == 0) {
-			node_query_flag = 1;
-		}
-		if (strcmp(argv[i], "-in") == 0) {
-			node_query_flag = 2;
 		}
 		if (strcmp(argv[i], "-write") == 0) {
 			writeflag = true;
@@ -89,23 +84,11 @@ int main(int argc, char* argv[]) {
 		if (strcmp(argv[i], "-time") == 0) {
 			timetest = true;
 		}
-        if (strcmp(argv[i], "-threshold") == 0) {
-            threshold = atof(argv[++i]);
-        }
-		if (strcmp(argv[i], "-arrnums") == 0) {
-            arr_nums = atoi(argv[++i]);
-        }
-		if (strcmp(argv[i], "-degdetect") == 0) {
-            degdetect = atoi(argv[++i]);
-        }
 		if (strcmp(argv[i], "-kicks") == 0) {
             kick_times = atoi(argv[++i]);
         }
 		if (strcmp(argv[i], "-slots") == 0) {
             slot_nums = atoi(argv[++i]);
-        }
-		if (strcmp(argv[i], "-slothash") == 0) {
-            degSlotHash = atoi(argv[++i]);
         }
 		if (strcmp(argv[i], "-k_width") == 0) {
             k_width = atoi(argv[++i]);
@@ -244,16 +227,8 @@ int main(int argc, char* argv[]) {
 
 	if (writeflag) {
 		string test_situation_dir = head_scube_addr + head_degdetect_addr + dataset_name + "_" + to_string(width) + "x" + to_string(depth) + "_ROOM_" + to_string(ROOM) +
-		"_fp_" + to_string(fingerprint_length) + "_win_" + to_string(window);
-		if (degdetect == 1) {
-			test_situation_dir += ("_threshold_" + to_string(threshold) + back_addr + "//");
-		}
-		else if (degdetect == 2) {
-			test_situation_dir += ("_arrnums_" + to_string(arr_nums) + "_threshold_" + to_string(threshold) + back_addr + "//");
-		}
-		else if (degdetect == 3) {
-			test_situation_dir += ("_slotnums_" + to_string(slot_nums) + "_SLOTROOM_"+ to_string(SLOTROOM) + "_" + to_string(k_width) + "_" + to_string(k_depth) + back_addr + "//");
-		}
+			"_fp_" + to_string(fingerprint_length) + "_win_" + to_string(window) + "_slotnums_" + to_string(slot_nums) + "_SLOTROOM_"+ to_string(SLOTROOM) + "_" + 
+			to_string(k_width) + "_" + to_string(k_depth) + back_addr + "//";
 		 
 		output_dir += test_situation_dir;
 		char dir_path[FILENAME_MAX];
@@ -265,7 +240,7 @@ int main(int argc, char* argv[]) {
 	}
 #if defined(DEBUG) || defined(INFO)
 	cout << "************************** Print Parameters **************************" << endl;
-	cout << "[Info]-Scube: width = " << width << ", depth = " << depth << ", ROOM = " << ROOM << ", SLOTROOM = " << SLOTROOM << ", threshold = " << threshold;
+	cout << "[Info]-Scube: width = " << width << ", depth = " << depth << ", ROOM = " << ROOM << ", SLOTROOM = " << SLOTROOM;
 	cout << ", degdetect.slot_nums = " << slot_nums;
 	cout << ", kick_times = " << (uint32_t)kick_times;
 	cout << ", fingerprint_length = " << fingerprint_length << endl << endl;
@@ -284,7 +259,7 @@ int main(int argc, char* argv[]) {
 #if defined(DEBUG)
 	cout << "~~~~~~~~~~~~~~~~~~ Init Scube ~~~~~~~~~~~~~~~~~~" << endl;
 #endif
-    Scube* scube = new ScubeKick(width, depth, fingerprint_length, k_width, k_depth, kick_times, slot_nums, degSlotHash);		// Init Scube
+    Scube* scube = new ScubeKick(width, depth, fingerprint_length, k_width, k_depth, kick_times, slot_nums);		// Init Scube
 	
 #if defined(DEBUG)
 	cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << endl;
