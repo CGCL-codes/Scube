@@ -53,7 +53,7 @@ private:
 
 public:
     // DegSlot
-    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int degSlothash);
+    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num);
     ~ScubeKick();
     bool insert(string s, string d, w_type w);
     bool insert(string s, string d, w_type w, double& kick_time, double& detector_ins_time);
