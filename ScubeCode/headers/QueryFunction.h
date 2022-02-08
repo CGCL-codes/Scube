@@ -20,7 +20,8 @@
 // const int query_data_pairs = 100000;
 uint64_t query_data_pairs = 0;
 
-struct QueryData {
+struct QueryData 
+{
 	uint32_t a;
 	uint32_t b;
 };
@@ -28,9 +29,40 @@ struct QueryData {
 /***************** function declaration ***********************/
 int isFolderExist(char* folder);
 int createDirectory(char* sPathName);
-int readRandomFileToDataArray(string file, QueryData dataArray[]);
 uint64_t count_lines(string file);
+#if defined(DEBUG) || defined(INFO)
+void progress_bar(int n);
+#endif
+int readRandomFileToDataArray(string file, QueryData dataArray[]);
+
+
+template <class T>
+int insert(T& scube, string filename, int type, int data_interval);
+template <class T>
+int insertbd(T& scube, string filename, int type, int data_interval);
+template <class T>
+uint32_t edgeFrequenceQueryTest(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write);
+template <class T>
+uint32_t allEdgeFrequenceQuery(T& scube, string dataset, string output_dir, string dataset_name);
+template <class T>
+uint32_t allEdgeFrequenceQuery1(T& scube, string input_dir, string output_dir, string dataset_name, bool write, uint32_t n, int fun);
+template <class T> 
+uint32_t edgeExistenceQueryTest(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write);
+template <class T>
+uint32_t nodeFrequenceQueryTest(T& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag);
+template <class T>
+uint32_t reachabilityQueryTest(T& scube, string input_file_header, string output_file_header, int query_times, bool write);
+template <class T>
+int reachabilityQueryWhileInsert(T& scube, string filename, int type, int data_interval, string input_dir, string output_dir, string dataset_name, int query_times, bool write);
+// template <class T>
+// uint32_t edgeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write);
+// template <class T>
+// uint32_t edgeExistenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write);
+template <class T>
+uint32_t nodeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag);
 /***************** function declaration ***********************/
+
+
 int isFolderExist(char* folder) {
 	int ret = 0;
 	ret = access(folder, R_OK | W_OK);
@@ -109,7 +141,7 @@ int readRandomFileToDataArray(string file, QueryData dataArray[]) {
 		dataArray[datanum].b = b;
 		datanum++;
 		if(datanum > query_data_pairs) {
-			cout << "error" << endl;
+			cout << "输入数据 > 数组范围" << endl;
 			break;
 		}
 	}
@@ -118,7 +150,7 @@ int readRandomFileToDataArray(string file, QueryData dataArray[]) {
 }
 
 template <class T>
-int insert(T& scube, string filename, int type, int data_interval) {		// int data_interval-10000
+int insert(T& scube, string filename, int type, int data_interval) {		// int data_interval-10000为单位
 	ifstream ifs;
 	ifs.open(filename);
 	if (!ifs.is_open()) {
@@ -204,7 +236,62 @@ int insert(T& scube, string filename, int type, int data_interval) {		// int dat
 	return 0;
 }
 
-int insertbd(ScubeKick& scube, string filename, int type, int data_interval) {		// int data_interval-10000
+void count_num(uint64_t* datanum, uint64_t* end_num) {
+	while(*datanum != *end_num) {
+		printf("datanum = %lu\n", *datanum);
+		sleep(1);
+	}
+}
+
+template <class T>
+int insert_tp_time(T& scube, string filename, int type) {		// int data_interval-10000为单位
+	ifstream ifs;
+	ifs.open(filename);
+	if (!ifs.is_open()) {
+		cout << "Error in open file, Path = " << filename << endl;
+		return -1;
+	}
+	uint32_t s, d, w, t;
+#if defined(DEBUG) || defined(INFO)
+	cout << "Inserting..." << endl;
+	uint64_t total = count_lines(filename);
+	if(total == 0)
+		cout << "ERROR--QueryFunction--258" <<endl;
+#endif
+	uint64_t datanum = 0;
+	int newv = 0, oldv = 0;
+	int dn = 0;	
+
+	thread* child = new thread(count_num, &datanum, &total);
+
+	while (!ifs.eof()) {
+		if (type == 0) {
+			ifs >> s >> d >> w >> t;
+			scube.insert(to_string(s), to_string(d), w);
+		}
+		else if (type == 1) {
+			ifs >> s >> d >> t;
+			scube.insert(to_string(s), to_string(d), 1);
+		}
+		else if (type == 2) {
+			ifs >> s >> d;
+			scube.insert(to_string(s), to_string(d), 1);
+		}
+		if(ifs.fail())
+			break;
+		datanum++;
+	}
+#if defined(DEBUG) || defined(INFO)
+	cout << "Insertion Finished!" << endl;
+	cout << "Datanum = " << datanum << endl;
+#endif
+	ifs.close();
+	child->join();
+	return 0;
+}
+
+template <class T>
+int insertbd(T& scube, string filename, int type, int data_interval) {		// int data_interval-10000为单位
 	ifstream ifs;
 	ifs.open(filename);
 	if (!ifs.is_open()) {
@@ -231,7 +318,7 @@ int insertbd(ScubeKick& scube, string filename, int type, int data_interval) {		
 	int dn = 0;
 	double kick_time = 0, degdetect_ins_time = 0;
 	double all_kick_time = 0, all_ins_time = 0; 
-	double bd_kick_time = 0, bd_ins_time = 0; 
+	double bd_kick_time = 0, bd_ins_time = 0;
 	while (!ifs.eof()) {
 		if (type == 0) {
 			ifs >> s >> d >> w >> t;
@@ -534,7 +621,6 @@ uint32_t allEdgeFrequenceQuery1(T& scube, string input_dir, string output_dir, s
 	return 0;
 }
 
-
 template <class T> 
 uint32_t edgeExistenceQueryTest(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
 	string input_file_prefix = "_bool_";
@@ -607,6 +693,7 @@ uint32_t edgeExistenceQueryTest(T& scube, string input_dir, string output_dir, s
 #endif
 	return 0;
 }
+
 template <class T>
 uint32_t nodeFrequenceQueryTest(T& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag) {
 	string file_suffix = ".txt";
@@ -693,6 +780,7 @@ uint32_t nodeFrequenceQueryTest(T& scube, string input_dir, string output_dir, s
 	}
 	return 0;
 }
+
 template <class T>
 uint32_t reachabilityQueryTest(T& scube, string input_file_header, string output_file_header, int query_times, bool write) {
 	string input_file_suffix = ".txt";
@@ -764,7 +852,7 @@ uint32_t reachabilityQueryTest(T& scube, string input_file_header, string output
 }
 
 // -----------------------insert while query--------------------------------- //
-template <class T>	// int data_interval-10000
+template <class T>	// int data_interval-10000为单位
 int reachabilityQueryWhileInsert(T& scube, string filename, int type, int data_interval, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
 	ifstream ifs;
 	ifs.open(filename);
@@ -862,9 +950,174 @@ int reachabilityQueryWhileInsert(T& scube, string filename, int type, int data_i
 	return 0;
 }
 
+// template <class T>
+// uint32_t edgeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
+// 	string input_file_prefix = dataset_name + "_random_edge_frequence_";
+// 	string input_file_suffix = "_sorted.txt";
+// 	string output_file_prefix = dataset_name + "_edge_frequence_baseline_";
+// 	string output_file_suffix = "_res.txt";
+// 	string time_file_suffix = "_time.txt";
+//	
+// 	//edge query process
+// 	query_data_pairs = count_lines(input_dir + input_file_prefix + input_file_suffix) + 10;
+// 	QueryData* dataArray = new QueryData[query_data_pairs];
+// 	int datanum = readRandomFileToDataArray(input_dir + input_file_prefix + input_file_suffix, dataArray);
+//
+// 	ofstream resultFile, timeFile;
+// 	if (write) {
+// 		char dir_path[FILENAME_MAX];
+// 		strcpy(dir_path, output_dir.c_str());
+// 		if (createDirectory(dir_path) != 0) {
+// 			cout << "CreateDirectory Error, Path = " << dir_path << endl;
+// 			return -1;
+// 		}
+// 		resultFile.open(output_dir + output_file_prefix + output_file_suffix);
+// 		if (!resultFile.is_open()) {
+// 			cout << "Error in open file, Path = " << (output_dir + output_file_prefix + output_file_suffix) << endl;
+// 			return -1;
+// 		}
+// 		timeFile.open(output_dir + output_file_prefix + time_file_suffix);
+// 		if (!timeFile.is_open()) {
+// 			cout << "Error in open file, Path = " << (output_dir + output_file_prefix + time_file_suffix) << endl;
+// 			return -1;
+// 		}
+// 	}
+//
+// 	double sumTime = 0, sumTime_perquery = 0;
+// 	timeval tp1, tp2;
+// 	double t_m = 0, t_b = 0, t_h = 0, t_a = 0;
+// 	double matrix_t = 0, buffer_t = 0, hash_t = 0, addr_t = 0;
+// 	double t_all = 0;
+// 	for (int m = 0; m < query_times; m++) {
+// 		sumTime_perquery = 0;
+// 		for (int n = 0; n < datanum; n++) {
+// 			gettimeofday( &tp1, NULL);
+// 			uint32_t res = scube.edgeWeightQueryTime(to_string(dataArray[n].a), to_string(dataArray[n].b), matrix_t, buffer_t, hash_t, addr_t);
+// 			gettimeofday( &tp2, NULL);
+// 			double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
+// 			sumTime_perquery += delta_t;
+// 			t_all += delta_t;
+// 			t_m += matrix_t;
+// 			t_b += buffer_t;
+// 			t_h += hash_t;
+// 			t_a += addr_t;
+// 			if (write && m == 0) {
+// 				if(n == (datanum - 1)) {
+// 					resultFile << res;
+// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t;
+// 					break;
+// 				}
+// 				else {
+// 					resultFile << res << endl;
+// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t << endl;
+// 				}
+// 			}
+// 		}
+// 		sumTime += (sumTime_perquery / (double)datanum);
+// 	}
+//
+// 	if (write) {
+// 		resultFile.flush();
+// 		timeFile.flush();
+// 		resultFile.close();
+// 		timeFile.close();
+// 	}
+// 	delete[] dataArray;
+// #if defined(DEBUG) || defined(INFO)
+// 	double mseconds = (double)(sumTime / (double)query_times) / 1000;
+// 	printf("Query Times = %d, Query Avg Time = %lf ms\n", query_times, mseconds);
+// 	t_all = t_m + t_b + t_h + t_a;
+// 	printf("Matrix time = %lf, Buffer Time = %lf, Hash Time = %lf, Addr Time = %lf\n\n", (t_m / t_all), (t_b / t_all), (t_h / t_all), (t_a / t_all));
+// #endif
+// 	return 0;
+// }
 
+// template <class T>
+// uint32_t edgeExistenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
+// 	string input_file_prefix = "_bool_";
+// 	string input_file_suffix = ".txt";
+// 	string output_file_prefix = "_bool_baseline_";
+// 	string output_file_suffix = "_res.txt";
+// 	string time_file_suffix = "_time.txt";
+//
+// 	//edge query process
+// 	query_data_pairs = count_lines(input_dir + dataset_name + input_file_prefix + input_file_suffix) + 10;
+// 	QueryData* dataArray = new QueryData[query_data_pairs];
+// 	int datanum = readRandomFileToDataArray(input_dir + dataset_name + input_file_prefix + input_file_suffix, dataArray);
+// 	ofstream resultFile, timeFile;
+// 	if (write) {
+// 		char dir_path[FILENAME_MAX];
+// 		strcpy(dir_path, output_dir.c_str());
+// 		if (createDirectory(dir_path) != 0) {
+// 			cout << "createDirectory error" << endl;
+// 			return -1;
+// 		}
+// 		resultFile.open(output_dir + dataset_name + output_file_prefix + output_file_suffix);
+// 		if (!resultFile.is_open()) {
+// 			cout << "error in open file " << (output_dir + dataset_name + output_file_prefix + output_file_suffix) << endl;
+// 			return -1;
+// 		}
+// 		timeFile.open(output_dir + dataset_name + output_file_prefix + time_file_suffix);
+// 		if (!timeFile.is_open()) {
+// 			cout << "Error in open file, Path = " << (output_dir + dataset_name + output_file_prefix + time_file_suffix) << endl;
+// 			return -1;
+// 		}
+// 	}
+//
+// 	double sumTime = 0, sumTime_perquery = 0;
+// 	int ones = 0;
+// 	timeval tp1, tp2;
+// 	double t_m = 0, t_b = 0, t_h = 0, t_a = 0;
+// 	double matrix_t = 0, buffer_t = 0, hash_t = 0, addr_t = 0;
+// 	double t_all = 0;
+// 	for (int m = 0; m < query_times; m++) {
+// 		sumTime_perquery = 0;
+// 		for (int n = 0; n < datanum; n++) {
+// 			gettimeofday( &tp1, NULL);
+// 			uint32_t res = scube.edgeWeightQueryTime(to_string(dataArray[n].a), to_string(dataArray[n].b), matrix_t, buffer_t, hash_t, addr_t);
+// 			gettimeofday( &tp2, NULL);
+// 			double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
+// 			sumTime_perquery += delta_t;
+// 			t_all += delta_t;
+// 			t_m += matrix_t;
+// 			t_b += buffer_t;
+// 			t_h += hash_t;
+// 			t_a += addr_t;
+// 			if (write && m == 0) {
+// 				if (res > 0)   
+// 					ones++;
+// 				if(n == (datanum - 1)) {
+// 					resultFile << ((res > 0) ? 1 : 0);
+// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t;
+// 					break;
+// 				}
+// 				else {
+// 					resultFile << ((res > 0) ? 1 : 0) << endl;
+// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t << endl;
+// 				}
+// 			}
+// 		}
+// 		sumTime += (sumTime_perquery / (double)datanum);
+// 	}
+//	
+// 	if (write) {
+// 		resultFile.flush();
+// 		timeFile.flush();
+// 		resultFile.close();
+// 		timeFile.close();
+// 	}
+// 	delete[] dataArray;
+// #if defined(DEBUG) || defined(INFO)
+// 	double mseconds = (double)(sumTime / (double)query_times) / 1000; 
+// 	printf("Query Times = %d, Query Avg Time = %lf ms\n", query_times, mseconds);	
+// 	t_all = t_m + t_b + t_h + t_a;
+// 	printf("Matrix time = %lf, Buffer Time = %lf, Hash Time = %lf, Addr Time = %lf\n\n", (t_m / t_all), (t_b / t_all), (t_h / t_all), (t_a / t_all));
+// #endif
+// 	return 0;
+// }
 
-uint32_t nodeFrequenceQueryTestTime(ScubeKick& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag) {
+template <class T>
+uint32_t nodeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag) {
 	string file_suffix = ".txt";
 	string input_file = "";
     string output_file = "";
@@ -917,7 +1170,7 @@ uint32_t nodeFrequenceQueryTestTime(ScubeKick& scube, string input_dir, string o
 			sumTime_perquery = 0;
 			for (int n = 0; n < datanum; n++) {
 				gettimeofday( &tp1, NULL);
-				int32_t res = scube.nodeWeightQueryTime(to_string(dataArray[n].a), (int)dataArray[n].b, matrix_time, addr_time);
+				int32_t res = scube.nodeWeightQuery(to_string(dataArray[n].a), (int)dataArray[n].b, matrix_time, addr_time);
 				gettimeofday( &tp2, NULL);
 				double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
 				sumTime_perquery += delta_t;
@@ -959,267 +1212,5 @@ uint32_t nodeFrequenceQueryTestTime(ScubeKick& scube, string input_dir, string o
 	return 0;
 }
 
-
-// template <class T>
-// uint32_t edgeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
-// 	string input_file_prefix = dataset_name + "_random_edge_frequence_";
-// 	string input_file_suffix = "_sorted.txt";
-// 	string output_file_prefix = dataset_name + "_edge_frequence_baseline_";
-// 	string output_file_suffix = "_res.txt";
-// 	string time_file_suffix = "_time.txt";
-	
-// 	//edge query process
-// 	query_data_pairs = count_lines(input_dir + input_file_prefix + input_file_suffix) + 10;
-// 	QueryData* dataArray = new QueryData[query_data_pairs];
-// 	int datanum = readRandomFileToDataArray(input_dir + input_file_prefix + input_file_suffix, dataArray);
-
-// 	ofstream resultFile, timeFile;
-// 	if (write) {
-// 		char dir_path[FILENAME_MAX];
-// 		strcpy(dir_path, output_dir.c_str());
-// 		if (createDirectory(dir_path) != 0) {
-// 			cout << "CreateDirectory Error, Path = " << dir_path << endl;
-// 			return -1;
-// 		}
-// 		resultFile.open(output_dir + output_file_prefix + output_file_suffix);
-// 		if (!resultFile.is_open()) {
-// 			cout << "Error in open file, Path = " << (output_dir + output_file_prefix + output_file_suffix) << endl;
-// 			return -1;
-// 		}
-// 		timeFile.open(output_dir + output_file_prefix + time_file_suffix);
-// 		if (!timeFile.is_open()) {
-// 			cout << "Error in open file, Path = " << (output_dir + output_file_prefix + time_file_suffix) << endl;
-// 			return -1;
-// 		}
-// 	}
-
-// 	double sumTime = 0, sumTime_perquery = 0;
-// 	timeval tp1, tp2;
-// 	double t_m = 0, t_b = 0, t_h = 0, t_a = 0;
-// 	double matrix_t = 0, buffer_t = 0, hash_t = 0, addr_t = 0;
-// 	double t_all = 0;
-// 	for (int m = 0; m < query_times; m++) {
-// 		sumTime_perquery = 0;
-// 		for (int n = 0; n < datanum; n++) {
-// 			gettimeofday( &tp1, NULL);
-// 			uint32_t res = scube.edgeWeightQueryTime(to_string(dataArray[n].a), to_string(dataArray[n].b), matrix_t, buffer_t, hash_t, addr_t);
-// 			gettimeofday( &tp2, NULL);
-// 			double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
-// 			sumTime_perquery += delta_t;
-// 			t_all += delta_t;
-// 			t_m += matrix_t;
-// 			t_b += buffer_t;
-// 			t_h += hash_t;
-// 			t_a += addr_t;
-// 			if (write && m == 0) {
-// 				if(n == (datanum - 1)) {
-// 					resultFile << res;
-// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t;
-// 					break;
-// 				}
-// 				else {
-// 					resultFile << res << endl;
-// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t << endl;
-// 				}
-// 			}
-// 		}
-// 		sumTime += (sumTime_perquery / (double)datanum);
-// 	}
-
-// 	if (write) {
-// 		resultFile.flush();
-// 		timeFile.flush();
-// 		resultFile.close();
-// 		timeFile.close();
-// 	}
-// 	delete[] dataArray;
-// #if defined(DEBUG) || defined(INFO)
-// 	double mseconds = (double)(sumTime / (double)query_times) / 1000;
-// 	printf("Query Times = %d, Query Avg Time = %lf ms\n", query_times, mseconds);
-// 	t_all = t_m + t_b + t_h + t_a;
-// 	printf("Matrix time = %lf, Buffer Time = %lf, Hash Time = %lf, Addr Time = %lf\n\n", (t_m / t_all), (t_b / t_all), (t_h / t_all), (t_a / t_all));
-// #endif
-// 	return 0;
-// }
-// template <class T>
-// uint32_t edgeExistenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
-// 	string input_file_prefix = "_bool_";
-// 	string input_file_suffix = ".txt";
-// 	string output_file_prefix = "_bool_baseline_";
-// 	string output_file_suffix = "_res.txt";
-// 	string time_file_suffix = "_time.txt";
-
-// 	//edge query process
-// 	query_data_pairs = count_lines(input_dir + dataset_name + input_file_prefix + input_file_suffix) + 10;
-// 	QueryData* dataArray = new QueryData[query_data_pairs];
-// 	int datanum = readRandomFileToDataArray(input_dir + dataset_name + input_file_prefix + input_file_suffix, dataArray);
-// 	ofstream resultFile, timeFile;
-// 	if (write) {
-// 		char dir_path[FILENAME_MAX];
-// 		strcpy(dir_path, output_dir.c_str());
-// 		if (createDirectory(dir_path) != 0) {
-// 			cout << "createDirectory error" << endl;
-// 			return -1;
-// 		}
-// 		resultFile.open(output_dir + dataset_name + output_file_prefix + output_file_suffix);
-// 		if (!resultFile.is_open()) {
-// 			cout << "error in open file " << (output_dir + dataset_name + output_file_prefix + output_file_suffix) << endl;
-// 			return -1;
-// 		}
-// 		timeFile.open(output_dir + dataset_name + output_file_prefix + time_file_suffix);
-// 		if (!timeFile.is_open()) {
-// 			cout << "Error in open file, Path = " << (output_dir + dataset_name + output_file_prefix + time_file_suffix) << endl;
-// 			return -1;
-// 		}
-// 	}
-
-// 	double sumTime = 0, sumTime_perquery = 0;
-// 	int ones = 0;
-// 	timeval tp1, tp2;
-// 	double t_m = 0, t_b = 0, t_h = 0, t_a = 0;
-// 	double matrix_t = 0, buffer_t = 0, hash_t = 0, addr_t = 0;
-// 	double t_all = 0;
-// 	for (int m = 0; m < query_times; m++) {
-// 		sumTime_perquery = 0;
-// 		for (int n = 0; n < datanum; n++) {
-// 			gettimeofday( &tp1, NULL);
-// 			uint32_t res = scube.edgeWeightQueryTime(to_string(dataArray[n].a), to_string(dataArray[n].b), matrix_t, buffer_t, hash_t, addr_t);
-// 			gettimeofday( &tp2, NULL);
-// 			double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
-// 			sumTime_perquery += delta_t;
-// 			t_all += delta_t;
-// 			t_m += matrix_t;
-// 			t_b += buffer_t;
-// 			t_h += hash_t;
-// 			t_a += addr_t;
-// 			if (write && m == 0) {
-// 				if (res > 0)   
-// 					ones++;
-// 				if(n == (datanum - 1)) {
-// 					resultFile << ((res > 0) ? 1 : 0);
-// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t;
-// 					break;
-// 				}
-// 				else {
-// 					resultFile << ((res > 0) ? 1 : 0) << endl;
-// 					timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t << endl;
-// 				}
-// 			}
-// 		}
-// 		sumTime += (sumTime_perquery / (double)datanum);
-// 	}
-	
-// 	if (write) {
-// 		resultFile.flush();
-// 		timeFile.flush();
-// 		resultFile.close();
-// 		timeFile.close();
-// 	}
-// 	delete[] dataArray;
-// #if defined(DEBUG) || defined(INFO)
-// 	double mseconds = (double)(sumTime / (double)query_times) / 1000; 
-// 	printf("Query Times = %d, Query Avg Time = %lf ms\n", query_times, mseconds);	
-// 	t_all = t_m + t_b + t_h + t_a;
-// 	printf("Matrix time = %lf, Buffer Time = %lf, Hash Time = %lf, Addr Time = %lf\n\n", (t_m / t_all), (t_b / t_all), (t_h / t_all), (t_a / t_all));
-// #endif
-// 	return 0;
-// }
-// template <class T>
-// uint32_t nodeFrequenceQueryTestTime(T& scube, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag) {
-// 	string file_suffix = ".txt";
-// 	string input_file = "";
-//     string output_file = "";
-//     string time_file = "";
-// 	switch (flag) {
-// 		case 1:
-// 			input_file = dataset_name + "-out-deg-input-";
-// 			output_file = dataset_name + "-out-weight-output-";
-// 			time_file = dataset_name + "-out-weight-time-";
-// 			break;
-// 		case 2:
-// 			input_file = dataset_name + "-in-deg-input-";
-//             output_file = dataset_name + "-in-weight-output-";
-//             time_file = dataset_name + "-in-weight-time-";
-// 			break;
-// 		default:
-// 			break;
-// 	}
-	
-// 	//node query process
-// 	for (int i = 0; i < num.size(); i++) {
-// 		query_data_pairs = count_lines(input_dir + input_file + to_string(num[i]) + file_suffix) + 10;
-// 		QueryData* dataArray = new QueryData[query_data_pairs];
-// 		int datanum = readRandomFileToDataArray(input_dir + input_file + to_string(num[i]) + file_suffix, dataArray);
-// 		ofstream resultFile, timeFile;
-// 		if (write) {
-// 			char dir_path[FILENAME_MAX];
-// 			strcpy(dir_path, output_dir.c_str());
-// 			if (createDirectory(dir_path) != 0) {
-// 				cout << "createDirectory error" << endl;
-// 				return -1;
-// 			}
-// 			resultFile.open(output_dir + output_file + to_string(num[i]) + file_suffix);
-// 			if (!resultFile.is_open()) {
-// 				cout << "Error in open file, Path = " << (output_dir + output_file + to_string(num[i]) + file_suffix) << endl;
-// 				return -1;
-// 			}
-// 			timeFile.open(output_dir + time_file + to_string(num[i]) + file_suffix);
-// 			if (!timeFile.is_open()) {
-// 				cout << "Error in open file, Path = " << (output_dir + time_file + to_string(num[i]) + file_suffix) << endl;
-// 				return -1;
-// 			}
-// 		}
-
-// 		double sumTime = 0, sumTime_perquery = 0;
-// 		double t_m = 0, t_b = 0, t_h = 0, t_a = 0;
-// 		double matrix_t = 0, buffer_t = 0, hash_t = 0, addr_t = 0;
-// 		double t_all = 0;	
-// 		timeval tp1, tp2;
-// 		for (int m = 0; m < query_times; m++) {
-// 			sumTime_perquery = 0;
-// 			for (int n = 0; n < datanum; n++) {			
-// 				gettimeofday( &tp1, NULL);
-// 				int32_t res = scube.nodeWeightQueryTime(to_string(dataArray[n].a), (int)dataArray[n].b, matrix_t, buffer_t, hash_t, addr_t);
-// 				gettimeofday( &tp2, NULL);
-// 				double delta_t = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
-// 				sumTime_perquery += delta_t;
-// 				t_all += delta_t;
-// 				t_m += matrix_t;
-// 				t_b += buffer_t;
-// 				t_h += hash_t;
-// 				t_a += addr_t;
-				
-// 				if (write && m == 0) {
-// 					if(n == (datanum - 1)) {
-// 						resultFile << res;
-// 						timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t;
-// 						break;
-// 					}
-// 					else {
-// 						resultFile << res << endl;
-// 						timeFile  << delta_t << " " << matrix_t << " " << buffer_t <<  " " << hash_t <<  " " << addr_t << endl;
-// 					}
-// 				}
-// 			}
-// 			sumTime += (sumTime_perquery / (double)datanum);
-// 		}
-
-// 		if (write) {
-// 			resultFile.flush();
-// 			timeFile.flush();
-// 			resultFile.close();
-// 			timeFile.close();
-// 		}
-// #if defined(DEBUG) || defined(INFO)
-//  	cout << "win = " << num[i] << endl;
-// 	double mseconds = (double)(sumTime / (double)query_times) / 1000; 
-// 	printf("Query Times = %d, Query Avg Time = %lf ms\n", query_times, mseconds);
-// 	t_all = t_m + t_b + t_h + t_a;
-// 	printf("Matrix time = %lf, Buffer Time = %lf, Hash Time = %lf, Addr Time = %lf\n\n", (t_m / t_all), (t_b / t_all), (t_h / t_all), (t_a / t_all));
-// #endif
-// 		delete[] dataArray;
-// 	}
-// 	return 0;
-// }
 
 #endif // #ifndef QUERYFUNCTION_H

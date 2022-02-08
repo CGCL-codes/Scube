@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
 	int input_type = 0;
 	int window = 0;
 	int data_interval = 100;
+	bool time_tp = false;
 	vector<int> win;
     // vector<int> win = {1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
 	// vector<int> win = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100};
@@ -89,6 +90,9 @@ int main(int argc, char* argv[]) {
 		if (strcmp(argv[i], "-edge_n") == 0) {
 			edge_n = atoi(argv[++i]);
 		}
+		if (strcmp(argv[i], "-time_tp") == 0) {
+            time_tp = true;
+        }
 	}
 	if (window > 0) {
 		for (int i = 1; i < 12; i++) {
@@ -96,38 +100,38 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	switch (dataset) { //数据集_查询类型_baseline/pgss_长度_res.txt
+	switch (dataset) {
 		case 1:
+			filename = "..//..//Dataset//wiki-talk";
+			input_dir = "..//..//TestFiles//wiki-talk//input//";
+			output_dir = "..//..//TestFiles//wiki-talk//output//";
+			dataset_name = "wiki-talk";
+            width = 3536;
+			depth = 3536;
+			break;
+		case 2:
 			filename = "..//..//Dataset//stackoverflow";
 			input_dir = "..//..//TestFiles//stackoverflow//input//";
 			output_dir = "..//..//TestFiles//stackoverflow//output//";
 			dataset_name = "stackoverflow";
 			width = 5656;
-			depth = 5658;
+			depth = 5656;
 			break;
-		case 2:
+		case 3:
+			filename = "..//..//Dataset//dbpedia";
+			input_dir = "..//..//TestFiles//dbpedia//input//";
+			output_dir = "..//..//TestFiles//dbpedia//output//";
+			dataset_name = "dbpedia";
+            width = 9280;
+			depth = 9280;
+			break;
+		case 4:
 			filename = "..//..//Dataset//caida";
 			input_dir = "..//..//TestFiles//caida//input//";
 			output_dir = "..//..//TestFiles//caida//output//";
 			dataset_name = "caida";
 			width = 15000;
 			depth = 15000;
-			break;
-		case 3:
-			filename = "..//..//Dataset//wiki";
-			input_dir = "..//..//TestFiles//wiki//input//";
-			output_dir = "..//..//TestFiles//wiki//output//";
-			dataset_name = "wiki";
-			width = 1750;
-			depth = 1750;
-			break;
-		case 4:
-			filename = "..//..//Dataset//lkml";
-			input_dir = "..//..//TestFiles//lkml-10w-86400//input//";
-			output_dir = "..//..//TestFiles//lkml-10w-86400//output//";
-			dataset_name = "lkml";
-			width = 1750;
-			depth = 1750;
 			break;
 		case 5:
 			filename = "..//..//Dataset//delicious-ui";
@@ -136,30 +140,6 @@ int main(int argc, char* argv[]) {
 			dataset_name = "delicious-ui";
             width = 17354;
 			depth = 17356;
-			break;
-		case 6:
-			filename = "..//..//Dataset//man-made";
-			input_dir = "..//..//TestFiles//man-made//input//";
-			output_dir = "..//..//TestFiles//man-made//output//";
-			dataset_name = "man-made";
-            width = 17354;
-			depth = 17356;
-			break;
-		case 7:
-			filename = "..//..//Dataset//wiki-talk";
-			input_dir = "..//..//TestFiles//wiki-talk//input//";
-			output_dir = "..//..//TestFiles//wiki-talk//output//";
-			dataset_name = "wiki-talk";
-            width = 3536;
-			depth = 3536;
-			break;
-		case 8:
-			filename = "..//..//Dataset//dbpedia";
-			input_dir = "..//..//TestFiles//dbpedia//input//";
-			output_dir = "..//..//TestFiles//dbpedia//output//";
-			dataset_name = "dbpedia";
-            width = 9280;
-			depth = 9280;
 			break;
 		default:
 			break;
@@ -233,6 +213,11 @@ int main(int argc, char* argv[]) {
 		cout << "**************** TCM Reachability Query While Insert Start ****************" << endl;
 		reachabilityQueryWhileInsert(tcm, filename, input_type, data_interval, input_dir, output_dir, dataset_name, query_times, writeflag);
 		cout << "****************  TCM Reachability Query While Insert End  ****************" << endl;
+	}
+	else if (time_tp) {
+		cout << "**************** Scube Insert Time Throughput Start ****************" << endl;
+		insert_tp_time(tcm, filename, input_type);
+		cout << "****************  Scube Insert Time Throughput End  ****************" << endl;
 	}
 	else {
 		// insertion process

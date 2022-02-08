@@ -1,5 +1,5 @@
-#ifndef _DegDetectorSlot_H
-#define _DegDetectorSlot_H
+#ifndef _DegDetectorNewSlot_H
+#define _DegDetectorNewSlot_H
 #include <iostream>
 #include <stdlib.h>
 #include <malloc.h>
@@ -9,13 +9,23 @@
 #include <memory.h>
 #include "DegDetector.h"
 
-using namespace std;
-#define para 1.08
+// ignore the low-n bits of the hash value of each nodes
 
-// with exponential-decay probability = para ^ -(1 << (l0p - 1) / phi)
+// #define EXPDEG(n, k)  ((1 / phi) * ((1 << ((n) + (k)))))
+#define EXPDEG(n, k)  ((1 / phi) * (((1 / 3) * ((1 << (n - 1)) - (1 / (1 << (n - 1))))) + (1 << (n + k - 1)) + (1 / (1 << (n)))))        // new formula
+// 1/3*(2^(n-1) - 1/2^(n-1))+2^(n+k-1)+2^(-n)
+// #define EXPDEG(n, k)  ((1 / phi) * ((1 << (n)) + (1 << (k)) - (n) - (1 / (1 << (n)))))
+
+using namespace std;
+// #define para 1.08
+
+// hash value = xxxx1(k 0s) --> potential high degree nodes
+// && hash value = xxx10(k 0s) --> high degree nodes, store it in the slot
+
+// with exponential-decay probability = 1/2    // para ^ -(1 << (l0p - 1) / phi)
 // slot + linkedlist
 
-class DegDetectorSlot: public DegDetector
+class DegDetectorNewSlot: public DegDetector
 {
 private:
     struct slot
@@ -23,7 +33,6 @@ private:
         key_type slot_key;          // 最低位作为指针标记
         slot_value_type value;      // 高24bit作为bitvector, 低8位作为addr
     };
-
     const uint32_t slot_num;
     const double phi = 0.77351;
     const uint16_t k_width = 0;               // k阈值，l0p的位置
@@ -32,13 +41,15 @@ private:
     const double n_depth = 0;
     slot* out_slots = NULL;
     slot* in_slots = NULL;
+    int ignore_bits;
+    double alpha = 0.8;             // 根据alpha*width算备选地址个数
 
     set<uint32_t> extend_s_index;    // 存储有扩展链slot的地址index
     set<uint32_t> extend_d_index;    // 存储有扩展链slot的地址index
 
 public:
-    DegDetectorSlot(uint32_t matrix_width, uint32_t matrix_depth, uint32_t k_width, uint32_t k_depth, uint32_t slotNum);
-    ~DegDetectorSlot();
+    DegDetectorNewSlot(uint32_t matrix_width, uint32_t matrix_depth, uint32_t k_width, uint32_t k_depth, uint32_t slotNum, int ignore_bits, double alpha = 0.8);
+    ~DegDetectorNewSlot();
     bool insert(key_type s, key_type d, hash_type hash_s, hash_type hash_d);
     // uint32_t degQuery(key_type n, int type);
     addr_type addrQuery(key_type n, int type);   // type = 0 for out_addr, 1 for in_addr
@@ -48,9 +59,6 @@ public:
 private:
     slot* recoverPointer(slot s);
     bool addSlot(uint32_t addr, int type, key_type key, slot_value_type slot_value);
-    bool updateSlotLinkedList(slot* linked_slot, key_type v, hash_type hashValue, int type);
-    addr_type visitLinkedSlot(slot* linked_slot, key_type key);
-    bool visitLinkedSlot(slot* linked_slot, key_type key, addr_type n);
     bool decayStrategy(uint32_t addr, int type, key_type key, hash_type hashValue);
     bool insertSlot(key_type key, hash_type hashValue, int type);
 
@@ -60,12 +68,13 @@ private:
     int hammingWeight(hash_type hashValue);
 };
 
-DegDetectorSlot::DegDetectorSlot(uint32_t matrix_width, uint32_t matrix_depth, uint32_t k_width, uint32_t k_depth, uint32_t slotNum): 
-DegDetector(matrix_width, matrix_depth), k_width(k_width), k_depth(k_depth), n_width((1 << k_width) / phi), n_depth((1 << k_depth) / phi), slot_num(slotNum)
+DegDetectorNewSlot::DegDetectorNewSlot(uint32_t matrix_width, uint32_t matrix_depth, uint32_t k_width, uint32_t k_depth, uint32_t slotNum, int ignore_bits, double alpha): 
+DegDetector(matrix_width, matrix_depth), k_width(k_width), k_depth(k_depth), n_width((1 << k_width) / phi), n_depth((1 << k_depth) / phi), slot_num(slotNum), ignore_bits(ignore_bits)
 {
 #if defined(DEBUG)
-    cout << "DegDetectorSlot::DegDetectorSlot(matrix_width: " << matrix_width << ", matrix_depth: " << matrix_depth 
-         << ", k_width: " << k_width << ", k_depth: " << k_depth << ", slot_num: " << slotNum << ")" << endl;
+    cout << "DegDetectorNewSlot-new-formula::DegDetectorNewSlot(matrix_width: " << matrix_width << ", matrix_depth: " << matrix_depth 
+         << ", k_width: " << k_width << ", k_depth: " << k_depth << ", slot_num: " << slotNum << ", ignore_bits: " << ignore_bits 
+         << ", alpha: " << alpha << ")" << endl;
     cout << "k_width = " << k_width << ", n_width = " << n_width << endl;
     cout << "k_depth = " << k_depth << ", n_depth = " << n_depth << endl;
 #endif
@@ -81,10 +90,10 @@ DegDetector(matrix_width, matrix_depth), k_width(k_width), k_depth(k_depth), n_w
     memset(this->in_slots, 0, sizeof(slot) * slotNum * SLOTROOM);
 }
 
-DegDetectorSlot::~DegDetectorSlot()
+DegDetectorNewSlot::~DegDetectorNewSlot()
 {
 #if defined(DEBUG)
-    cout << "DegDetectorSlot-room-exp::~DegDetectorSlot()" << endl;
+    cout << "DegDetectorNewSlot::~DegDetectorNewSlot()" << endl;
 #endif
     for (set<uint32_t>::iterator iter = extend_s_index.begin(); iter != extend_s_index.end(); iter++) {
         uint32_t index = *iter;
@@ -140,7 +149,7 @@ DegDetectorSlot::~DegDetectorSlot()
     free(this->in_slots);
 }
 
-DegDetectorSlot::slot* DegDetectorSlot::recoverPointer(slot s) 
+DegDetectorNewSlot::slot* DegDetectorNewSlot::recoverPointer(slot s) 
 {
     return (slot *) ((((uint64_t)s.slot_key) << 32) | s.value);
 }
@@ -152,7 +161,7 @@ DegDetectorSlot::slot* DegDetectorSlot::recoverPointer(slot s)
 // 4. 将尾部的slot的第SLOTNUM-1个ROOM的值复制到new slot的第1个ROOM中
 // 5. 将尾部的slot的第SLOTNUM-1个ROOM设置为new slot的指针
 // 6. 将待存储的点存储到new slot的第二个ROOM中
-bool DegDetectorSlot::addSlot(uint32_t addr, int type, key_type key, slot_value_type slot_value)
+bool DegDetectorNewSlot::addSlot(uint32_t addr, int type, key_type key, slot_value_type slot_value)
 {
     if (type == 0)
         this->extend_s_index.insert(addr);
@@ -200,125 +209,10 @@ bool DegDetectorSlot::addSlot(uint32_t addr, int type, key_type key, slot_value_
     return true;
 }
 
-// 访问以head为头节点的链表
-// 如果链表中存在key，则将hashValue"或"进对应单元的value中，并更新addr，返回true；如果不存在key，则返回false
-bool DegDetectorSlot::updateSlotLinkedList(slot* head, key_type key, hash_type hashValue, int type)
-{
-    uint16_t k1 = (type == 0) ? k_width : k_depth;
-    uint32_t len = (type == 0) ? matrix_width : matrix_depth;
-    double theta = len * ROOM * 0.8;
-    slot* ptr = head;
-    bool flag = true;
-    while (flag)
-    {
-        for (int i = 0; i < SLOTROOM; i++)
-        {
-            if (i == SLOTROOM - 1)
-            {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)
-                {
-                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
-                    break;
-                }
-                else
-                    flag = false;
-            }
-            // if the fingerprint is the same
-            if ((ptr[i].slot_key >> 1) == key)
-            {
-                // "or" operation
-                ptr[i].value |= (hashValue << 8);
-                int k = left0Pos(ptr[i].value >> 8);
-                
-                if (k >= k1)
-                {
-                    // addr_type ad = (1 << (k1 - k + 1)) + 1;
-                    // addr_type ad = k1 - (k - 2);
-                    addr_type ad = (addr_type) max (ceil((double)((1 << k) / phi) / theta), 2.0);
-                    if ((ptr[i].value & 0xff) < ad) 
-                    {
-                        ptr[i].value &= 0xffffff00;
-                        ptr[i].value |= ad;
-                    }
-                }
-                return true;
-            }
-            // if the slot is empty
-            else if ((ptr[i].slot_key == 0) && (ptr[i].value == 0)) 
-            {
-                ptr[i].slot_key = (key << 1);
-                ptr[i].value = (hashValue << 8 | 2);
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-addr_type DegDetectorSlot::visitLinkedSlot(slot* linked_slot, key_type key)       // get address
-{
-    slot* ptr = linked_slot;
-    bool flag = true;
-    while (flag)
-    {
-        for (int i = 0; i < SLOTROOM; i++)
-        {
-            if (i == SLOTROOM - 1)
-            {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)
-                {
-                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
-                    break;
-                }
-                else
-                    flag = false;
-            }
-            // if the fingerprint is the same
-            if ((ptr[i].slot_key >> 1) == key) 
-            {
-                // get the addr info
-                return (addr_type)(ptr[i].value & 0xff);
-            }
-        }
-    }
-    return 2;
-}
-
-bool DegDetectorSlot::visitLinkedSlot(slot* linked_slot, key_type key, addr_type n)           // extend addr
-{
-    slot* ptr = linked_slot;
-    bool flag = true;
-    while (flag)
-    {
-        for (int i = 0; i < SLOTROOM; i++)
-        {
-            if (i == SLOTROOM - 1)
-            {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)
-                {
-                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
-                    break;
-                }
-                else
-                    flag = false;
-            }
-            // if the fingerprint is the same
-            if ((ptr[i].slot_key >> 1) == key) 
-            {
-                // extend addrs to n
-                ptr[i].value &= 0xffffff00;
-                ptr[i].value |= n;
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-// 只对低度点进行衰退（衰退说明该key不存在与对应slot(链)中，因为在插入的时候已经遍历过一次slot(链)，另外执行扩展说明前面的节点都是高度点，此时只需对尾slot进行衰退）
+// 只对potential high degree进行衰退（衰退说明该key不存在与对应slot(链)中，因为在插入的时候已经遍历过一次slot(链)，另外执行扩展说明前面的节点都是高度点，此时只需对尾slot进行衰退）
 // 有链的话直接拿到尾slot，对尾slot中的room进行衰退
 // 如果尾slot都被高度点占满，此时扩展节点
-bool DegDetectorSlot::decayStrategy(uint32_t addr, int type, key_type key, hash_type hashValue)
+bool DegDetectorNewSlot::decayStrategy(uint32_t addr, int type, key_type key, hash_type hashValue)
 {
     slot* slots = (type == 0) ? out_slots : in_slots;
     slot* decay_slot = NULL;
@@ -346,7 +240,7 @@ bool DegDetectorSlot::decayStrategy(uint32_t addr, int type, key_type key, hash_
     for (int i = 0; i < SLOTROOM; i++) 
     {
         int l = left0Pos(decay_slot[i].value >> 8);
-        if (((decay_slot[i].value & 0xff) == 2) && (l0p > l)) 
+        if (((decay_slot[i].value & 0xff) == 2) && (l < 2) && (l0p > l))
         {
             l0p = l;
             index = i;
@@ -362,24 +256,29 @@ bool DegDetectorSlot::decayStrategy(uint32_t addr, int type, key_type key, hash_
     }
     else
     {
-        if (l0p > 0)    // 只对低度点进行衰退
+        if (l0p == 1)    // 只对potential high degree点进行衰退，衰退概率为0.5，因为插入的点也是potential high degree，地位等同
         {
             // if ((decay_slot[index].value & 0xff) == 2) {   
-            double num = (double)(1 << (l0p - 1)) / phi;
-            if (!(rand() % int(pow(para, num))))
+            // double num = (double)(1 << (l0p + delta_k - 1)) / phi;
+            // if (!(rand() % int(pow(para, num))))
+            srand((unsigned)time(NULL));
+            if (rand() % 2)
             {
-                // change the right most 1 of hash_value to 0
-                hash_type mask = 1 << (l0p - 1);
-                decay_slot[index].value ^= (mask << 8);
-                // if the hash_value reduces to 0, kick out
-                // if (decay_slot[index].value[index] == 0) {
-                if (((decay_slot[index].value >> 8) & 1) == 0)
-                {
-                    decay_slot[index].slot_key = (key << 1);
-                    decay_slot[index].value = ((hashValue << 8) | 2);   // 初始地址设置为2
-                }
+                // kick-out
+                decay_slot[index].slot_key = (key << 1);
+                decay_slot[index].value = ((hashValue << 8) | 2);   // 初始地址设置为2
+
+                // // change the right most 1 of hash_value to 0
+                // hash_type mask = 1 << (l0p - 1);
+                // decay_slot[index].value ^= (mask << 8);
+                // // if the hash_value reduces to 0, kick out
+                // // if (decay_slot[index].value[index] == 0) {
+                // if (((decay_slot[index].value >> 8) & 1) == 0)
+                // {
+                //     decay_slot[index].slot_key = (key << 1);
+                //     decay_slot[index].value = ((hashValue << 8) | 2);   // 初始地址设置为2
+                // }
             }
-            // }
         }
         else if (l0p == 0)   // 直接替换
         {
@@ -391,87 +290,100 @@ bool DegDetectorSlot::decayStrategy(uint32_t addr, int type, key_type key, hash_
 }
 
 // update slot
-bool DegDetectorSlot::insertSlot(key_type key, hash_type hashValue, int type)
+// 对于高度点不进行衰退，如果某个slot都被高度点占满，
+// 则判断SLOTNUM - 2中key的最高位bit是不是1，是1则说明SLOTNUM - 1中存储的是指针（一个指针64bit）
+bool DegDetectorNewSlot::insertSlot(key_type key, hash_type hashValue, int type)
 {
     slot* slots = (type == 0) ? out_slots : in_slots;
     uint32_t idx = key % slot_num;
-    uint16_t k1 = (type == 0) ? k_width : k_depth;
     uint32_t len = (type == 0) ? matrix_width : matrix_depth;
     double theta = len * ROOM * 0.8;
 
     // look up if the node is existing or the slot is empty
-    bool inserted = false;
-    for (int i = 0; i < SLOTROOM; i++) 
+    slot* ptr = &slots[idx * SLOTROOM];
+    bool flag = true;
+    while (flag)
     {
-        if (!inserted) 
+        for (int i = 0; i < SLOTROOM; i++) 
         {
-            if ((i == SLOTROOM - 1) && ((slots[idx * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1))     // 说明最后一个ROOM存储的是指针
+            if (i == SLOTROOM - 1)
             {
-                // 恢复指针，该指针是指向此slot对应链表的头节点指针
-                slot* head = recoverPointer(slots[idx * SLOTROOM + SLOTROOM - 1]);
-                inserted = updateSlotLinkedList(head, key, hashValue, type);
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                {
+                    // 恢复指针
+                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
+                    break;
+                }
+                else
+                {
+                    flag = false;
+                }
             }
-            else 
+            // if the fingerprint is the same
+            if ((ptr[i].slot_key >> 1) == key) 
             {
-                // if the fingerprint is the same
-                if ((slots[idx * SLOTROOM + i].slot_key >> 1) == key) 
+                // "or" operation
+                ptr[i].value |= (hashValue << 8);
+                int k = left0Pos((ptr[i].value >> 8));
+                
+                // 两个连续“1”才是高度点
+                if (k > 1) 
                 {
-                    // "or" operation
-                    slots[idx * SLOTROOM + i].value |= (hashValue << 8);
-                    int k = left0Pos((slots[idx * SLOTROOM + i].value >> 8));
-                    
-                   
-                    if (k >= k1) {
-                        // addr_type ad = (1 << (k - k1 + 1)) + 1;
-                        // addr_type ad = k - (k1 - 2);
-                        addr_type ad = (addr_type) max (ceil((double)((1 << k) / phi) / theta), 2.0);
-                        if ((slots[idx * SLOTROOM + i].value & 0xff) < ad) 
-                        {
-                            slots[idx * SLOTROOM + i].value &= 0xffffff00;
-                            slots[idx * SLOTROOM + i].value |= ad;
-                        }
+                    // addr_type ad = (addr_type) max (ceil((double)((1 << (k + ignore_bits)) / phi) / theta), 2.0);
+                    // addr_type ad = (addr_type) max (ceil((double)(((1 << ignore_bits) + (1 << k) - ignore_bits - 1.0 / (1 << ignore_bits)) / phi) / theta), 2.0);
+                    addr_type ad = (addr_type) max (ceil((double)(EXPDEG(ignore_bits, k) / theta)), 2.0);
+                    if ((ptr[i].value & 0xff) < ad) 
+                    {
+                        ptr[i].value &= 0xffffff00;
+                        ptr[i].value |= ad;
                     }
-                    inserted = true;
                 }
-                // if the slot is empty
-                else if ((slots[idx * SLOTROOM + i].slot_key == 0) && (slots[idx * SLOTROOM + i].value == 0)) 
-                {
-                    slots[idx * SLOTROOM + i].slot_key = (key << 1);
-                    slots[idx * SLOTROOM + i].value = ((hashValue << 8) | 2);   // 初始地址设置为2
-                    inserted = true;
-                }
+                return true;
+            }
+            // if the slot is empty
+            else if ((ptr[i].slot_key == 0) && (ptr[i].value == 0)) 
+            {
+                ptr[i].slot_key = (key << 1);
+                ptr[i].value = ((hashValue << 8) | 2);   // 初始(potential high degree)地址设置为2
+                return true;
             }
         }
-        if (inserted)
-            break;
     }
+    
 
+    // 前面的slot中已经满了，而且没有fingerprint匹配的，因此进行decay
     // we kick out the minimum element in the slot according to the hash value by probability
-    if (!inserted) 
-    {
-        inserted = decayStrategy(idx, type, key, hashValue);
-    }
-    return inserted;
+    return decayStrategy(idx, type, key, hashValue);
 }
 
 // insert elements to the degree detector
-// 对于高度点不进行衰退，如果某个slot都被高度点占满，则判断SLOTNUM - 2中key的最高位bit是不是1，是1则说明SLOTNUM - 1中存储的是指针（一个指针64bit）
-bool DegDetectorSlot::insert(key_type s, key_type d, hash_type hash_s, hash_type hash_d)
+// 1. 对于hash值中l1p大于等于ignore_bits，插入到slot里面去，否则忽略；
+// 2. 对potential high degree进行衰退；
+// 3. 在查询的时候判断是否是高度点，判断方法是bit vector中是否存在两个连续的1
+bool DegDetectorNewSlot::insert(key_type s, key_type d, hash_type hash_s, hash_type hash_d)
 {
+    bool res = true;
     int sLeft1Pos = left1Pos(hash_s);
+    if (sLeft1Pos >= ignore_bits) 
+    {
+        hash_type sHashValue = 1 << (sLeft1Pos - ignore_bits);
+        res = res && insertSlot(d, sHashValue, 1);
+    }
+
     int dLeft1Pos = left1Pos(hash_d);
-    hash_type sHashValue = (sLeft1Pos == -1) ? 0 : (1 << sLeft1Pos);
-    hash_type dHashValue = (dLeft1Pos == -1) ? 0 : (1 << dLeft1Pos);
+    if (dLeft1Pos >= ignore_bits) 
+    {
+        hash_type dHashValue = 1 << (dLeft1Pos - ignore_bits);
+        res = res && insertSlot(s, dHashValue, 0);
+    }
 
-    bool out_ins = insertSlot(s, dHashValue, 0);
-    bool in_ins = insertSlot(d, sHashValue, 1);
-
-    return (out_ins && in_ins);
+    return res;
 }
 
 // return the estimate degree of the node
-// uint32_t DegDetectorSlot::degQuery(key_type key, int type) 
+// uint32_t DegDetectorNewSlot::degQuery(key_type key, int type) 
 // {
+//     uint16_t delta_k = (type == 0) ? k_width : k_depth;
 //     addr_type addrs = this->addrQuery(key, type);
 //     if (addrs > 2) 
 //         return (1 << addrs) / phi;
@@ -501,7 +413,7 @@ bool DegDetectorSlot::insert(key_type s, key_type d, hash_type hash_s, hash_type
 //                             // return the estimate value according to the hashValue
 //                             hash_type hashValue = (ptr[j].value >> 8);
 //                             int l0p = left0Pos(hashValue);
-//                             res += ((1 << l0p) / phi);
+//                             res += ((1 << (l0p + delta_k)) / phi);
 //                             return res;
 //                         }
 //                     }
@@ -523,113 +435,98 @@ bool DegDetectorSlot::insert(key_type s, key_type d, hash_type hash_s, hash_type
 //                 return res;
 //             }
 //         }
-        
 //     }
 //     return 0;
 // }
 
-addr_type DegDetectorSlot::addrQuery(key_type key, int type) 
+addr_type DegDetectorNewSlot::addrQuery(key_type key, int type) 
 {
     // 初始给所有的点都设为2轮，0，1
-    addr_type res_ad = 2;
+    // addr_type res_ad = 2;
     slot* slots = (type == 0) ? out_slots : in_slots;
     uint32_t slot_index = key % slot_num;
-    for (int i = 0; i < SLOTROOM; i++)         // query the addr in slots
+
+    slot* ptr = &slots[slot_index * SLOTROOM];
+    bool flag = true;
+    while (flag)
     {
-        if ((i == SLOTROOM - 1) && ((slots[slot_index * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1))    // 说明最后一个ROOM存储的是指针
-        {  
-            // 恢复指针
-            slot* rec = recoverPointer(slots[slot_index * SLOTROOM + SLOTROOM - 1]);
-            addr_type temp = visitLinkedSlot(rec, key);
-            if (temp > res_ad) 
-            {
-                return temp;
-            }
-                // res_ad = temp;
-        }
-        else 
+        for (int i = 0; i < SLOTROOM; i++)         // query the addr in slots
         {
-            if ((slots[slot_index * SLOTROOM + i].slot_key >> 1) == key) 
+            if (i == SLOTROOM - 1)
             {
-                // res_ad = (slots[slot_index * SLOTROOM + i].value & 0xff);
-                return (slots[slot_index * SLOTROOM + i].value & 0xff);
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                {
+                    // 恢复指针
+                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
+                    break;
+                }
+                else
+                {
+                    flag = false;
+                }
+            }
+            // if the fingerprint is the same
+            if ((ptr[i].slot_key >> 1) == key) 
+            {
+                // get the addr info
+                // res_ad = (ptr[i].value & 0xff);
+                return (addr_type)(ptr[i].value & 0xff);
             }
         }
     }
-    return res_ad;
+    return 2;
 }
 
-bool DegDetectorSlot::extendAddr(key_type key, addr_type n, int type) 
+bool DegDetectorNewSlot::extendAddr(key_type key, addr_type n, int type) 
 {
     // cout << "key = " << key << ", n = " << n << endl;
     bool res = false;
     if (n < 2)
     {
-        cout << "DegDetectorSlot::extendAddr error!" << endl;
+        cout << "DegDetectorNewSlot::extendAddr error!" << endl;
         return false;
     }
     // 首先查找slots中是否有key
     slot* slots = (type == 0) ? out_slots : in_slots;
     uint32_t slot_index = key % slot_num;
-    for (int i = 0; i < SLOTROOM; i++)
+
+    slot* ptr = &slots[slot_index * SLOTROOM];
+    bool flag = true;
+    while (flag)
     {
-        if ((i == SLOTROOM - 1) && ((slots[slot_index * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1))     // 说明最后一个ROOM存储的是指针
+        for (int i = 0; i < SLOTROOM; i++)
         {
-            // 恢复指针
-            slot* rec = recoverPointer(slots[slot_index * SLOTROOM + i]);
-            bool temp = visitLinkedSlot(rec, key, n);
-            if (temp) 
-                return true;
-        }
-        else 
-        {
-            // if the key is the same
-            if ((slots[slot_index * SLOTROOM + i].slot_key >> 1) == key) 
+            if (i == SLOTROOM - 1)
             {
-                slots[slot_index * SLOTROOM + i].value &= 0xffffff00;
-                slots[slot_index * SLOTROOM + i].value |= n;
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                {
+                    // 恢复指针
+                    ptr = recoverPointer(ptr[SLOTROOM - 1]);
+                    break;
+                }
+                else
+                {
+                    flag = false;
+                }
+            }
+            // if the key is the same
+            if ((ptr[i].slot_key >> 1) == key) 
+            {
+                // extend addrs to n
+                ptr[i].value &= 0xffffff00;
+                ptr[i].value |= n;
                 return true;
             }
             // look up if there exists empty slot
-            if ((slots[slot_index * SLOTROOM + i].slot_key == 0) && (slots[slot_index * SLOTROOM + i].value == 0)) 
+            if ((ptr[i].slot_key == 0) && (ptr[i].value == 0)) 
             {
-                slots[slot_index * SLOTROOM + i].slot_key = (key << 1);
-                // slots[slot_index * SLOTROOM + i].value = ((dHashValue << 8) | n);   // 地址设置为n
-                slots[slot_index * SLOTROOM + i].value = n;   // 地址设置为n
+                ptr[i].slot_key = (key << 1);
+                // ptr[i].value = ((dHashValue << 8) | n);   // 地址设置为n
+                ptr[i].value = n;   // 地址设置为n
                 return true;
             }
         }
     }
-    // for (int i = 0; i < SLOTROOM; i++)
-    // {
-    //     if ((i == SLOTROOM - 1) && ((slots[slot_index * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1))     // 说明最后一个ROOM存储的是指针
-    //     {
-    //         // 恢复指针
-    //         slot* ptr = recoverPointer(slots[slot_index * SLOTROOM + i]);
-    //         slot* ptr1 = ptr;
-    //         while (true) {
-    //             for (int i = 0; i < SLOTROOM; i++) 
-    //             {
-    //                 if ((i == SLOTROOM - 1) && (ptr[SLOTROOM - 2].slot_key & 1) == 1) 
-    //                 {
-    //                     ptr1 = recoverPointer(ptr[SLOTROOM - 1]);
-    //                 }
-    //                 // else 
-    //                 // {
-    //                 //     cout << "Room " << i << " addr = " << (slots[slot_index * SLOTROOM + i].value & 0xff) << endl;
-    //                 // }
-    //             }
-    //             if (ptr1 != ptr)
-    //                 ptr = ptr1;
-    //             else 
-    //                 break;
-    //         }
-    //     }
-    //     // else 
-    //     // {
-    //     //     cout << "Room " << i << " addr = " << (slots[slot_index * SLOTROOM + i].value & 0xff) << endl;
-    //     // }
-    // }
 
     // 没有空的room，扩展
     if (!addSlot(slot_index, type, key, n))
@@ -646,7 +543,7 @@ bool DegDetectorSlot::extendAddr(key_type key, addr_type n, int type)
 
 // return the position of the left most 0-bit in hashValue, ranks start at 0.
 // return 32 while hashValue = 0xffffffff
-int DegDetectorSlot::left0Pos(hash_type hashValue) 
+int DegDetectorNewSlot::left0Pos(hash_type hashValue) 
 {
     int i = 0;
     while (hashValue != 0) 
@@ -664,7 +561,7 @@ int DegDetectorSlot::left0Pos(hash_type hashValue)
 
 // return the position of the left most 1-bit in hashValue, ranks start at 0.
 // return -1 while hashValue = 0
-int DegDetectorSlot::left1Pos(hash_type hashValue) 
+int DegDetectorNewSlot::left1Pos(hash_type hashValue) 
 {
     int i = 0;
     while (hashValue != 0) 
@@ -682,7 +579,7 @@ int DegDetectorSlot::left1Pos(hash_type hashValue)
 
 // return the position of the right most 1-bit in hashValue, ranks start at 0.
 // return -1 while hashValue = 0
-int DegDetectorSlot::right1Pos(hash_type hashValue) 
+int DegDetectorNewSlot::right1Pos(hash_type hashValue) 
 {
     int i = 31;
     while (i >= 0) 
@@ -697,7 +594,7 @@ int DegDetectorSlot::right1Pos(hash_type hashValue)
 }
 
 // count the number of 1
-int DegDetectorSlot::hammingWeight(hash_type hashValue) 
+int DegDetectorNewSlot::hammingWeight(hash_type hashValue) 
 {
     int count = 0;
     while (hashValue != 0) 
@@ -708,7 +605,7 @@ int DegDetectorSlot::hammingWeight(hash_type hashValue)
     return count;
 }
 
-void DegDetectorSlot::printUsage() 
+void DegDetectorNewSlot::printUsage() 
 {
     map<addr_type, uint32_t> out_ad, in_ad;
     for(int idx = 0; idx < slot_num; idx++) {
@@ -810,4 +707,4 @@ void DegDetectorSlot::printUsage()
     // cout << "----------------------------------------------------" << endl;
 }
 
-#endif // _DegDetectorSlot_H
+#endif // _DegDetectorNewSlot_H

@@ -10,9 +10,9 @@
 #define MUL 5
 
 #ifdef ROOM1
-#define ROOM 1	// This is the parameter to control the maximum number of rooms in a bucket. 
+#define ROOM 1	// This is the parameter to controll the maximum number of rooms in a bucket. 
 #else
-#define ROOM 2 // This is the parameter to control the maximum number of rooms in a bucket.
+#define ROOM 2 // This is the parameter to controll the maximum number of rooms in a bucket.
 #endif
 
 #ifdef SR2
@@ -22,7 +22,7 @@
 #elif SR8
 #define SLOTROOM 8
 #else
-#define SLOTROOM 16     // This is the parameter to control the maximum number of rooms in a DegDetector slot.
+#define SLOTROOM 16
 #endif
 
 // #ifdef SR1

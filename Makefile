@@ -2,7 +2,7 @@ all : scube tcm gss
 
 .PHONY : all
 CXX = g++
-CFLAGS = -D DEBUG -std=c++11
+CFLAGS = -g -D DEBUG -std=c++11 -static-libstdc++ -lpthread
 
 scube : scube.o
 	$(CXX) -o scube scube.o $(CFLAGS)

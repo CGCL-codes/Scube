@@ -1,5 +1,5 @@
-#ifndef _ScubeKick_H
-#define _ScubeKick_H
+#ifndef _SCUBEKICK_H
+#define _SCUBEKICK_H
 #include <iostream>
 #include <string>
 #include <vector>
@@ -10,16 +10,22 @@
 #include <stdlib.h>
 #include <bitset>
 #include <memory.h>
+#include <malloc.h>
 #include <sys/time.h>
 #include "Scube.h"
 #include "../headers/HashFunction.h"
 #include "../headers/params.h"
+#include "../DegDetector/DegDetectorNewSlot.h"
 #include "../DegDetector/DegDetectorSlot.h"
+#include "../DegDetector/DegDetectorSlot2bit.h"
+#include "../DegDetector/DegDetectorUMap2bit.h"
 
+using namespace std;
 
-#ifdef H0
-#define HASH 0
-#elif H1
+// !!!seed要用32bit，16bit不行!!!
+// 避免两个元素之间的循环踢 + multiple hash
+
+#ifdef H1
 #define HASH 1
 #elif H2
 #define HASH 2
@@ -29,11 +35,11 @@
 #define HASH 4
 #elif H5
 #define HASH 5
-#else
+#elif H6
 #define HASH 6
+#else
+#define HASH 0
 #endif
-
-using namespace std;
 
 class ScubeKick: public Scube
 {
@@ -44,22 +50,29 @@ private:
         fp_type fp;
     };
     int n = 0;
+    int writeflag = 0;
     const uint8_t kick_times = 10;
     const uint32_t slot_num = 1000;
     basket* value = NULL;
     DegDetector* degDetector = NULL;
-
     uint32_t s_extend = 0, d_extend = 0, max_kick_extend = 0;
+    bool slot2bit = false;
 
 public:
     // DegSlot
-    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num);
+    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int writeflag);
+    // DegNewSlot
+    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int writeflag, int ignore_bits, double alpha);
+    // DegSlot2bit
+    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint32_t kick_times, uint32_t slot_num, int writeflag, double exp_deg, int ignore_bits, int reserved_bits, double alpha);
+    // DegUMap2bit
+    ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint32_t kick_times, int writeflag, double exp_deg, int ignore_bits, int reserved_bits, double alpha);
     ~ScubeKick();
     bool insert(string s, string d, w_type w);
     bool insert(string s, string d, w_type w, double& kick_time, double& detector_ins_time);
     w_type edgeWeightQuery(string s, string d);
     uint32_t nodeWeightQuery(string s, int type);
-    uint32_t nodeWeightQueryTime(string v, int type, double& matrix_time, double& addr_time);
+    uint32_t nodeWeightQuery(string v, int type, double& matrix_time, double& addr_time);
     bool reachabilityQuery(string s, string d);
     bool reachabilityQuery(string s, string d, int& points, int& lines);
     void printUsageInfo();
@@ -74,36 +87,104 @@ private:
     int getMinIndex(uint16_t * a, int length);
     uint32_t recoverAddrSeed(fp_type fp, uint16_t idx, addr_type addr, uint32_t mod);
 
-    bool kick_out(key_type& cur_key_s, key_type& cur_key_d, w_type& cur_w, addr_type* cur_addr_row, addr_type* cur_addr_col, int& row_addrs, int& col_addrs);
-    bool fp_insert(key_type key_s, key_type key_d, w_type w);
-    bool fp_insert(key_type key_s, key_type key_d, w_type w, double& kick_time, double& dector_query_time);
+    int insert_matrix(addr_type& addr_s, fp_type& fp_s, addr_type& addr_d, fp_type& fp_d, w_type& w, addr_type& idx_s, addr_type& idx_d, addr_type* addr_rows, addr_type* addr_cols);
+    bool kick_out(addr_type& addr_s, fp_type& fp_s, addr_type& addr_d, fp_type& fp_d, w_type& w, addr_type& idx_s, addr_type& idx_d, addr_type* addr_row, addr_type* addr_col, int& row_addrs, int& col_addrs);
 };
-ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num):
+// DegSlot
+ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int writeflag):
 Scube(width, depth, fingerprint_length), kick_times(kick_times) 
 {
 #if defined(DEBUG)
-    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length << ", k_width: " << k_width << ", k_depth: " << k_depth << ", kick_times: " << kick_times << ", slot_num: " << slot_num << ")" << endl;
+    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length << ", k_width: " << k_width << ", k_depth: " << k_depth << ", kick_times: " << kick_times << ", slot_num: " << slot_num << ", FLAG: " << writeflag << ")" << endl;
 #endif
     s_extend = 0, d_extend = 0, max_kick_extend = 0;
-    // this->degDetector = new DegDetectorSlot(width, depth, threshold, slot_num);
     this->degDetector = new DegDetectorSlot(width, depth, k_width, k_depth, slot_num);
+    if (writeflag > 0)
+        writeflag = 1;
     // this->value = new basket[width * depth];
-    posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
+    // posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
+    // this->value = (basket *) aligned_alloc(64, sizeof(basket) * width * depth);	    // 64-byte alignment of the requested space
+    this->value = (basket *) memalign(64, sizeof(basket) * width * depth);	            // 64-byte alignment of the requested space
     memset(value, 0, sizeof(basket) * width * depth);
 }
 
-ScubeKick::~ScubeKick()
+//DegNewSlot
+ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint16_t k_width, uint16_t k_depth, uint32_t kick_times, uint32_t slot_num, int writeflag, int ignore_bits, double alpha):
+Scube(width, depth, fingerprint_length), kick_times(kick_times)
 {
 #if defined(DEBUG)
-	cout << "ScubeKick::~ScubeKick()" << endl;
+    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length 
+         << ", k_width: " << k_width << ", k_depth: " << k_depth << ", kick_times: " << kick_times << ", slot_num: " 
+         << slot_num << ", FLAG: " << writeflag << ", ignore_bits: " << ignore_bits << ", alpha: " << alpha << ")" << endl;
 #endif
+    s_extend = 0, d_extend = 0, max_kick_extend = 0;
+    this->degDetector = new DegDetectorNewSlot(width, depth, k_width, k_depth, slot_num, ignore_bits, alpha);
+    if (writeflag > 0)
+        writeflag = 1;
+    // this->value = new basket[width * depth];
+    // posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
+    // this->value = (basket *) aligned_alloc(64, sizeof(basket) * width * depth);  	// 64-byte alignment of the requested space
+    this->value = (basket *) memalign(64, sizeof(basket) * width * depth);	            // 64-byte alignment of the requested space
+    memset(value, 0, sizeof(basket) * width * depth);
+}
+
+// DegSlot2bit
+ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint32_t kick_times, uint32_t slot_num, int writeflag, double exp_deg, int ignore_bits, int reserved_bits, double alpha):
+Scube(width, depth, fingerprint_length), kick_times(kick_times)
+{
+#if defined(DEBUG)
+    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length 
+         << ", kick_times: " << kick_times << ", slot_num: " << slot_num << ", FLAG: " << writeflag 
+         << ", exp_deg: " << exp_deg << ", ignore_bits: " << ignore_bits
+         << ", reserved_bits: " << reserved_bits << ", alpha: " << alpha << ")" << endl;
+#endif
+    this->slot2bit = true;
+    s_extend = 0, d_extend = 0, max_kick_extend = 0;
+    this->degDetector = new DegDetectorSlot2bit(width, depth, slot_num, exp_deg, ignore_bits, reserved_bits, alpha);
+    if (writeflag > 0)
+        writeflag = 1;
+    // this->value = new basket[width * depth];
+    // posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
+    // this->value = (basket *) aligned_alloc(64, sizeof(basket) * width * depth);	    // 64-byte alignment of the requested space
+    this->value = (basket *) memalign(64, sizeof(basket) * width * depth);	            // 64-byte alignment of the requested space
+    memset(value, 0, sizeof(basket) * width * depth);
+}
+
+// DegSlotUMap
+ScubeKick::ScubeKick(uint32_t width, uint32_t depth, uint8_t fingerprint_length, uint32_t kick_times, int writeflag, double exp_deg, int ignore_bits, int reserved_bits, double alpha):
+Scube(width, depth, fingerprint_length), kick_times(kick_times)
+{
+#if defined(DEBUG)
+    cout << "ScubeKick::ScubeKick(width: " <<  width << ", depth: " << depth << ", fplen: " << (uint32_t) fingerprint_length 
+         << ", kick_times: " << kick_times << ", FLAG: " << writeflag << ", exp_deg: " << exp_deg 
+         << ", ignore_bits: " << ignore_bits << ", reserved_bits: " << reserved_bits << ", alpha: " << alpha << ")" << endl;
+#endif
+    this->slot2bit = true;
+    s_extend = 0, d_extend = 0, max_kick_extend = 0;
+    this->degDetector = new DegDetectorUMap2bit(width, depth, exp_deg, ignore_bits, reserved_bits, alpha);
+    if (writeflag > 0)
+        writeflag = 1;
+    // this->value = new basket[width * depth];
+    // posix_memalign((void**)&(this->value), 64, sizeof(basket) * width * depth);		// 64-byte alignment of the requested space
+    // this->value = (basket *) aligned_alloc(64, sizeof(basket) * width * depth);	    // 64-byte alignment of the requested space
+    this->value = (basket *) memalign(64, sizeof(basket) * width * depth);	            // 64-byte alignment of the requested space
+    memset(value, 0, sizeof(basket) * width * depth);
+}
+
+    
+ScubeKick::~ScubeKick()
+{
+    #if defined(DEBUG)
+	cout << "ScubeKick::~ScubeKick()" << endl;
+    #endif
     delete degDetector;
-    delete[] value;
+    // delete[] value;
+    free(this->value);
 }
 
 /***************private functions***************/
-// s is the ID of the source node, d is the ID of the destination node, w is the edge weight.
-int ScubeKick::getMinIndex(uint16_t * a, int length) 
+// return the min value index of array a
+int ScubeKick::getMinIndex(uint16_t *a, int length) 
 {
     uint16_t min = a[0];
     int index = 0;
@@ -117,6 +198,7 @@ int ScubeKick::getMinIndex(uint16_t * a, int length)
     }
     return index;
 }
+// recover the address seed by the fingerprint and the address index
 uint32_t ScubeKick::recoverAddrSeed(fp_type fp, uint16_t idx, addr_type addr, uint32_t mod)
 {
     uint32_t res = 0;
@@ -131,38 +213,104 @@ uint32_t ScubeKick::recoverAddrSeed(fp_type fp, uint16_t idx, addr_type addr, ui
     res = tmp_h - shifter;
     return res;
 }
-
-bool ScubeKick::kick_out(key_type& cur_key_s, key_type& cur_key_d, w_type& cur_w, addr_type* cur_addr_row, addr_type* cur_addr_col, int& row_addrs, int& col_addrs)
+// -1: insert failed
+// 0: insert succeed and the edge does not exist (update)
+// 1: insert succeed and the edge exists
+int ScubeKick::insert_matrix(addr_type& addr_s, fp_type& fp_s, addr_type& addr_d, fp_type& fp_d, w_type& w, addr_type& idx_s, addr_type& idx_d, addr_type* addr_rows, addr_type* addr_cols)
 {
-    addr_type map_idx_s = degDetector->addrQuery(cur_key_s, 0);
-    addr_type map_idx_d = degDetector->addrQuery(cur_key_d, 1);
+    //  calculate the seeds
+    uint32_t* seed1 = new uint32_t[idx_s];
+    uint32_t* seed2 = new uint32_t[idx_d];
+    seed1[0] = fp_s;
+    for(int i = 1; i < idx_s; i++)
+    {
+        seed1[i] = (seed1[i - 1] * MUL + INC) % MOD;
+    }
+    seed2[0] = fp_d;
+    for(int i = 1; i < idx_d; i++)
+    {
+        seed2[i] = (seed2[i - 1] * MUL + INC) % MOD;
+    }
 
-    addr_type mask = (1 << fingerprint_length) - 1;
-    fp_type cur_fp_s = cur_key_s & mask;
-    fp_type cur_fp_d = cur_key_d & mask;
-    addr_type cur_addr_s = cur_key_s >> fingerprint_length;
-    addr_type cur_addr_d = cur_key_d >> fingerprint_length;
-    uint16_t cur_ext = ((map_idx_s - row_addrs) << 8) | (map_idx_d - col_addrs);
-    // uint16_t cur_ext = ((map_idx_s - 2) << 8) | (map_idx_d - 2);
+    // 判断当前边信息是否已经存在在当前（所有）备选地址的某一个
+    // 判断当前（所有）备选地址是否有空地址
+    bool empty = false;
+    uint16_t temp_idx = 0;
+    int temp_k = -1;
+    addr_type temp_pos = 0;
+    for (int i = 0; i < idx_s; i++)
+    {
+        addr_rows[i] = (addr_s + seed1[i]) % depth;
+        for (int j = 0; j < idx_d; j++)
+        {
+            addr_cols[j] = (addr_d + seed2[j]) % width;
+            addr_type pos = addr_rows[i] * width + addr_cols[j];
+            uint16_t idx = (i << 8) |  j;
+            for (int k = 0; k < ROOM; ++k)
+            {
+                if((value[pos].fp_src[k] == fp_s) && (value[pos].fp_dst[k] == fp_d) && (value[pos].ext[k] == idx)) 
+                {
+                    value[pos].weight[k] += w;
+                    delete[] seed1;
+                    delete[] seed2;
+                    return 1;
+                }
+                if(value[pos].fp_src[k] == 0 && !empty) //找到空地址
+                {
+                    empty = true;
+                    temp_idx = idx;
+                    temp_k = k;
+                    temp_pos = pos;
+                }
+            }
+        }
+    }
+    if(empty) 
+    {
+        value[temp_pos].ext[temp_k] = temp_idx;
+        value[temp_pos].fp_src[temp_k] = fp_s;
+        value[temp_pos].fp_dst[temp_k] = fp_d;
+        value[temp_pos].weight[temp_k] = w;
+        delete[] seed1;
+        delete[] seed2;
+        return 0;
+    }
+    delete[] seed1;
+    delete[] seed2;
+    return -1;
+}
+// kick-out strategy
+bool ScubeKick::kick_out(addr_type& addr_s, fp_type& fp_s, addr_type& addr_d, fp_type& fp_d, w_type& w, addr_type& idx_s, addr_type& idx_d, addr_type* rows, addr_type* cols, int& row_kicks, int& col_kicks)
+{
+    // 在当前 “最新” 的row_addrs行、col_addrs列踢
+    uint16_t ext = ((idx_s - row_kicks) << 8) | (idx_d - col_kicks);    //base ext 需要加上kick_index
+    // uint16_t cur_ext = ((map_idx_s - 2) << 8) | (map_idx_d - 2);     //base ext 需要加上kick_index
 
     int max_kick = 1000;
     bool inserted = false;
-    uint32_t pre_row = -1, pre_col = -1;
+    uint32_t pre_row = -1, pre_col = -1;    // 踢的地址
     // key_type ks[1000], kd[1000];
+    key_type key_s = ((addr_s << fingerprint_length) + fp_s);
+    key_type key_d = ((addr_d << fingerprint_length) + fp_d);
+
     
     for (int kick_num = 0; !inserted; kick_num++)
     {
         // ks[kick_num] = cur_key_s;
         // kd[kick_num] = cur_key_d;
-        if(kick_num > kick_times && kick_num <= max_kick)
+        // 当踢的次数达到kick_times时，这时每次都判断踢出来的边中是不是含有高度点，若是，则直接扩展地址；否则继续踢
+        // 当踢的次数达到max_kick时，这时直接扩展地址
+        if(kick_num > kick_times && kick_num <= max_kick)       //判断踢出来的边中含不含高度点
         {
             bool brk = false;
-            addr_type n1 = degDetector->addrQuery(cur_key_s, 0);
-            addr_type n2 = degDetector->addrQuery(cur_key_d, 1);
+            // 判断cur_key_s、cur_key_d是否是高度点
+            addr_type n1 = degDetector->addrQuery(key_s, 0);
+            addr_type n2 = degDetector->addrQuery(key_d, 1);
 
             if (n1 > 2) 
             { 
-                bool ext = degDetector->extendAddr(cur_key_s, n1 + 1, 0);
+                // 扩展行地址
+                bool ext = degDetector->extendAddr(key_s, n1 + 1, 0);     // 将该“高度”点记录到map中
                 if (!ext)
                     cout << "extend address error! " << endl;
                 brk = true;
@@ -170,7 +318,8 @@ bool ScubeKick::kick_out(key_type& cur_key_s, key_type& cur_key_d, w_type& cur_w
             }
             if (n2 > 2) 
             { 
-                bool ext = degDetector->extendAddr(cur_key_d, n2 + 1, 1);
+                // 扩展列地址
+                bool ext = degDetector->extendAddr(key_d, n2 + 1, 1);     // 将该“高度”点记录到map中
                 if (!ext)
                     cout << "extend address error!" << endl;
                 brk = true;
@@ -182,40 +331,45 @@ bool ScubeKick::kick_out(key_type& cur_key_s, key_type& cur_key_d, w_type& cur_w
         else if (kick_num > max_kick)
         {
             max_kick_extend++;
-            addr_type n1 = degDetector->addrQuery(cur_key_s, 0); 
-            addr_type n2 = degDetector->addrQuery(cur_key_d, 1);
+            // 达到了max_kick次数，这时候直接将当前顶点视为高度顶点，s, d均扩展地址
+            // 扩展地址将当前fp的地址轮数加1即可
+            addr_type n1 = degDetector->addrQuery(key_s, 0);   // 从degDetector中获取指纹对应的map_index
+            addr_type n2 = degDetector->addrQuery(key_d, 1);   // 从degDetector中获取指纹对应的map_index
 
-            bool ext1 = degDetector->extendAddr(cur_key_s, n1 + 1, 0);
+            // 扩展行地址
+            bool ext1 = degDetector->extendAddr(key_s, n1 + 1, 0);    // 将该“高度”点记录到map中
             if (!ext1)
                 cout << "extend address error!" << endl;
                 
-            bool ext2 = degDetector->extendAddr(cur_key_d, n2 + 1, 1);
+            // 扩展列地址
+            bool ext2 = degDetector->extendAddr(key_d, n2 + 1, 1);    // 将该“高度”点记录到map中
             if (!ext2)
                 cout << "extend address error!" << endl;             
             break;
         }
         
+        // 找出Roomnum * row_addrs * col_addrs个备选地址中，index最小的那一个
         // uint16_t kick_index[ROOM * row_addrs * col_addrs];
-        uint16_t* kick_index = new uint16_t[ROOM * row_addrs * col_addrs];
-        memset(kick_index, -1, ROOM * row_addrs * col_addrs * sizeof(uint16_t));
-        for (int i = 0; i < row_addrs; i++)
+        uint16_t* kick_index = new uint16_t[ROOM * row_kicks * col_kicks];
+        memset(kick_index, -1, ROOM * row_kicks * col_kicks * sizeof(uint16_t));
+        for (int i = 0; i < row_kicks; i++)
         {
-            for (int j = 0; j < col_addrs; j++)
+            for (int j = 0; j < col_kicks; j++)
             {
-                if ((cur_addr_row[i] == pre_row) && (cur_addr_col[j] == pre_col)) 
+                if ((rows[i] == pre_row) && (cols[j] == pre_col)) 
                     continue;
-                uint32_t pos = cur_addr_row[i] * width + cur_addr_col[j];
+                uint32_t pos = rows[i] * width + cols[j];
                 for (int k = 0; k < ROOM; k++)
                 {
                     // kick_index[4 * i + 2 * j + k] = value[pos].ext[k];
-                    kick_index[col_addrs * ROOM * i + ROOM * j + k] = value[pos].ext[k];
+                    kick_index[col_kicks * ROOM * i + ROOM * j + k] = value[pos].ext[k];
                     // key_type keys = recoverAddrSeed(value[pos].fp_src[k], (value[pos].ext[k] >> 8), cur_addr_row[i], this->depth);
                     // key_type keyd = recoverAddrSeed(value[pos].fp_dst[k], (value[pos].ext[k] & 0xff), cur_addr_col[j], this->width);
                 }
             }
         }
 
-        uint16_t idx = getMinIndex(kick_index, ROOM * row_addrs * col_addrs);
+        uint16_t idx = getMinIndex(kick_index, ROOM * row_kicks * col_kicks);
         if (idx == -1) {
             cout << "Error: ScubeKick:Kick_out()~line 250" << endl;
         }
@@ -224,257 +378,119 @@ bool ScubeKick::kick_out(key_type& cur_key_s, key_type& cur_key_d, w_type& cur_w
         uint16_t cur_j = (idx & 2) >> 1;
         uint16_t cur_k = (idx & 1);
 
-        pre_row = cur_addr_row[cur_i];
-        pre_col = cur_addr_col[cur_j];
+        pre_row = rows[cur_i];
+        pre_col = cols[cur_j];
 
-        addr_type kick_pos = cur_addr_row[cur_i] * width + cur_addr_col[cur_j];
+        // 将准备踢出来的item放入kick_字段
+        addr_type kick_pos = rows[cur_i] * width + cols[cur_j];
         fp_type kick_fp_s = value[kick_pos].fp_src[cur_k];
         fp_type kick_fp_d = value[kick_pos].fp_dst[cur_k];
         w_type kick_fp_w = value[kick_pos].weight[cur_k];
         uint16_t kick_ext = value[kick_pos].ext[cur_k];
 
-        value[kick_pos].fp_src[cur_k] = cur_fp_s;
-        value[kick_pos].fp_dst[cur_k] = cur_fp_d;
-        value[kick_pos].weight[cur_k] = cur_w;
-        value[kick_pos].ext[cur_k] = ((cur_ext & 0xff00) + (cur_i << 8)) | ((cur_ext & 0xff) + cur_j);
-
-        cur_fp_s = kick_fp_s;
-        cur_fp_d = kick_fp_d;
-        cur_w = kick_fp_w;
-        // cur_ext = kick_ext;
-        uint16_t cur_idx_s = kick_ext >> 8;
-        uint16_t cur_idx_d = kick_ext & 0xff;
-
-        cur_addr_s = recoverAddrSeed(cur_fp_s, cur_idx_s, cur_addr_row[cur_i], depth);
-        cur_addr_d = recoverAddrSeed(cur_fp_d, cur_idx_d, cur_addr_col[cur_j], width);
-
-        cur_key_s = (cur_addr_s << fingerprint_length) + cur_fp_s;
-        cur_key_d = (cur_addr_d << fingerprint_length) + cur_fp_d;
-
-        addr_type cur_map_idx_s = degDetector->addrQuery(cur_key_s, 0);
-        addr_type cur_map_idx_d = degDetector->addrQuery(cur_key_d, 1);
-        
-        // cur_ext = ((cur_map_idx_s - 2) << 8) | (cur_map_idx_d - 2);
-        uint16_t addr_no = kick_ext;
+        // 将当前待插入的item插入到矩阵中
+        value[kick_pos].fp_src[cur_k] = fp_s;
+        value[kick_pos].fp_dst[cur_k] = fp_d;
+        value[kick_pos].weight[cur_k] = w;
+        value[kick_pos].ext[cur_k] = ((ext & 0xff00) + (cur_i << 8)) | ((ext & 0xff) + cur_j);
 ////
-        // calculate all alternate addresses
-        // calculate all the seeds
-        uint32_t* seed_s = new uint32_t[cur_map_idx_s];
-        uint32_t* seed_d = new uint32_t[cur_map_idx_d];
-        seed_s[0] = cur_fp_s;
-        seed_d[0] = cur_fp_d;
-        for(int i = 1; i < cur_map_idx_s; i++)
-            seed_s[i] = (seed_s[i - 1] * MUL + INC) % MOD;
-        for(int i = 1; i < cur_map_idx_d; i++)
-            seed_d[i] = (seed_d[i - 1] * MUL + INC) % MOD;
-    
-        row_addrs = (cur_map_idx_s > 2) ? (cur_map_idx_s - ((1 << ((int)ceil(log2(cur_map_idx_s - 1))) - 1) + 1)) : 2;
-        col_addrs = (cur_map_idx_d > 2) ? (cur_map_idx_d - ((1 << ((int)ceil(log2(cur_map_idx_d - 1))) - 1) + 1)) : 2;
-        if (row_addrs < 2)
-            row_addrs = 2;
-        if (col_addrs < 2)
-            col_addrs = 2;
+        // 将踢出来的边信息记录到fp_s、fp_d、w字段，继续寻找bucket以插入
+        fp_s = kick_fp_s;
+        fp_d = kick_fp_d;
+        w = kick_fp_w;
 
-        cur_ext = ((cur_map_idx_s - row_addrs) << 8) | (cur_map_idx_d - col_addrs);
+        //根据fp以及轮数还原addr
+        addr_s = recoverAddrSeed(kick_fp_s, (kick_ext >> 8), rows[cur_i], depth);
+        addr_d = recoverAddrSeed(kick_fp_d, (kick_ext & 0xff), cols[cur_j], width);
 
-        if (row_addrs > 255) {
-            // delete[] cur_addr_row;
-            // cur_addr_row = new addr_type[row_addrs];
-            cout << "Address number is bigger than 255!" << endl;
-        }
-        if (col_addrs > 255) {
-            // delete[] cur_addr_col;
-            // cur_addr_col = new addr_type[col_addrs];
-            cout << "Address number is bigger than 255!" << endl;
-        }
-        for (int i = 0; i < row_addrs; i++) {
-            cur_addr_row[i] = (cur_addr_s + seed_s[cur_map_idx_s - row_addrs + i]) % depth;
-        }
-        for (int i = 0; i < col_addrs; i++) {
-            cur_addr_col[i] = (cur_addr_d + seed_d[cur_map_idx_d - col_addrs + i]) % width;
-        }
-        // cur_addr_row[0] = (cur_addr_s + seed_s[cur_map_idx_s - 2]) % depth;
-        // cur_addr_row[1] = (cur_addr_s + seed_s[cur_map_idx_s - 1]) % depth;
-        // cur_addr_col[0] = (cur_addr_d + seed_d[cur_map_idx_d - 2]) % width;
-        // cur_addr_col[1] = (cur_addr_d + seed_d[cur_map_idx_d - 1]) % width;
-
-
-        bool empty = false;
-        uint16_t temp_idx = 0;
-        int temp_k = -1;
-        addr_type temp_pos = 0;
-        for (int i = 0; i < cur_map_idx_s; i++)
-        {
-            addr_type row_addr = (cur_addr_s + seed_s[i]) % depth;
-            for (int j = 0; j < cur_map_idx_d; j++)
-            {
-                addr_type col_addr = (cur_addr_d + seed_d[j]) % width;
-                addr_type pos = row_addr * width + col_addr;
-                uint16_t idx = (i << 8) |  j;
-                for (int k = 0; k < ROOM; ++k)
-                {
-                    if((value[pos].fp_src[k] == cur_fp_s) && (value[pos].fp_dst[k] == cur_fp_d) && (value[pos].ext[k] == idx)) 
-                    {
-                        value[pos].weight[k] += cur_w;
-                        inserted = true;
-                        break;
-                    }
-                    if(value[pos].fp_src[k] == 0 && !empty) // find an empty room
-                    {
-                        empty = true;
-                        temp_idx = idx;
-                        temp_k = k;
-                        temp_pos = pos;
-                    }
-                }
-                if(inserted)
-                    break;
-            }
-            if(inserted)
-                break;
-        }
-        if(!inserted && empty) 
-        {
-            value[temp_pos].ext[temp_k] = temp_idx;
-            value[temp_pos].fp_src[temp_k] = cur_fp_s;
-            value[temp_pos].fp_dst[temp_k] = cur_fp_d;
-            value[temp_pos].weight[temp_k] = cur_w;
+        key_s = ((addr_s << fingerprint_length) + fp_s);
+        key_d = ((addr_d << fingerprint_length) + fp_d);
+        idx_s = degDetector->addrQuery(key_s, 0);   // 从degDetector中获取指纹对应的map_index
+        idx_d = degDetector->addrQuery(key_d, 1);   // 从degDetector中获取指纹对应的map_index
+        
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        if (res != -1)
+        {   
             inserted = true;
         }
-        delete[] seed_s;
-        delete[] seed_d;
+        // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+        // row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+        // col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+        // if (row_kicks < 2)
+        //     row_kicks = 2;
+        // if (col_kicks < 2)
+        //     col_kicks = 2;
+        // if (row_kicks > 255) {
+        //     cout << "Address number is bigger than 255!" << endl;
+        // }
+        // if (col_kicks > 255) {
+        //     cout << "Address number is bigger than 255!" << endl;
+        // }
+        // 在当前 “最新” 的两行踢
+        row_kicks = 2;
+        col_kicks = 2;
+        
+        ext = ((idx_s - row_kicks) << 8) | (idx_d - col_kicks);
+        
+        for (int i = 0; i < row_kicks; i++) {
+            rows[i] = addr_rows[idx_s - row_kicks + i];
+        }
+        for (int i = 0; i < col_kicks; i++) {
+            cols[i] = addr_cols[idx_d - col_kicks + i];
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
+    }
+    if (!inserted) 
+    {
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        if (res == -1)
+        {
+            // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // int row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+            // int col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+            // if (row_kicks < 2)
+            //     row_kicks = 2;
+            // if (col_kicks < 2)
+            //     col_kicks = 2;
+            // if (row_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // if (col_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // 在当前row_addrs行、col_addrs列踢
+            int row_kicks = 2;
+            int col_kicks = 2;
+            addr_type* rows = new addr_type[255];
+            addr_type* cols = new addr_type[255];
+            
+            for (int i = 0; i < row_kicks; i++) {
+                rows[i] = addr_rows[idx_s - row_kicks + i];
+            }
+            for (int i = 0; i < col_kicks; i++) {
+                cols[i] = addr_cols[idx_d - col_kicks + i];
+            }
+            inserted = kick_out(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, rows, cols, row_kicks, col_kicks);
+            delete[] rows;
+            delete[] cols;
+        }
+        else 
+        {
+            inserted = true;
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
     }
     return inserted;
 }
-bool ScubeKick::fp_insert(key_type key_s, key_type key_d, w_type w)
-{
-    // query the number of alternative addresses of each node
-    addr_type map_idx_s = degDetector->addrQuery(key_s, 0);
-    addr_type map_idx_d = degDetector->addrQuery(key_d, 1);
-
-    hash_type mask = (1 << fingerprint_length) - 1;
-    fp_type fp_s = key_s & mask;
-    fp_type fp_d = key_d & mask;
-    addr_type addr_s = key_s >> fingerprint_length;
-    addr_type addr_d = key_d >> fingerprint_length;
-
-    //  calculate the seeds
-    uint32_t* seed1 = new uint32_t[map_idx_s];
-    uint32_t* seed2 = new uint32_t[map_idx_d];
-    seed1[0] = fp_s;
-    for(int i = 1; i < map_idx_s; i++)
-    {
-        seed1[i] = (seed1[i - 1] * MUL + INC) % MOD;
-    }
-    seed2[0] = fp_d;
-    for(int i = 1; i < map_idx_d; i++)
-    {
-        seed2[i] = (seed2[i - 1] * MUL + INC) % MOD;
-    }
-
-    addr_type* addr_row = new addr_type[map_idx_s];
-    addr_type* addr_col = new addr_type[map_idx_d];
-    bool inserted = false;
-    bool empty = false;
-    uint16_t temp_idx = 0;
-    int temp_k = -1;
-    addr_type temp_pos = 0;
-    for (int i = 0; i < map_idx_s; i++)
-    {
-        addr_row[i] = (addr_s + seed1[i]) % depth;
-        for (int j = 0; j < map_idx_d; j++)
-        {
-            addr_col[j] = (addr_d + seed2[j]) % width;
-            addr_type pos = addr_row[i] * width + addr_col[j];
-            uint16_t idx = (i << 8) |  j;
-            for (int k = 0; k < ROOM; ++k)
-            {
-                if((value[pos].fp_src[k] == fp_s) && (value[pos].fp_dst[k] == fp_d) && (value[pos].ext[k] == idx)) 
-                {
-                    value[pos].weight[k] += w;
-                    inserted = true;
-                    break;
-                }
-                if(value[pos].fp_src[k] == 0 && !empty) // find an empty room
-                {
-                    empty = true;
-                    temp_idx = idx;
-                    temp_k = k;
-                    temp_pos = pos;
-                }
-            }
-            if(inserted)
-                break;
-        }
-        if(inserted)
-            break;
-    }
-    if(!inserted && empty) 
-    {
-        value[temp_pos].ext[temp_k] = temp_idx;
-        value[temp_pos].fp_src[temp_k] = fp_s;
-        value[temp_pos].fp_dst[temp_k] = fp_d;
-        value[temp_pos].weight[temp_k] = w;
-        inserted = true;
-    }
-    if (!inserted)
-    {
-        // kick-out strategy
-        key_type cur_key_s = key_s;
-        key_type cur_key_d = key_d;
-        w_type cur_w = w;
-
-        // addr_type cur_addr_row[2] = {addr_row[map_idx_s - 2], addr_row[map_idx_s - 1]};
-        // addr_type cur_addr_col[2] = {addr_col[map_idx_d - 2], addr_col[map_idx_d - 1]};
-        // inserted = kick_out(cur_key_s, cur_key_d, cur_w, cur_addr_row, cur_addr_col);
-        addr_type* cur_addr_row = new addr_type[255];
-        addr_type* cur_addr_col = new addr_type[255];
-
-        int row_addrs = (map_idx_s > 2) ? (map_idx_s - ((1 << ((int)ceil(log2(map_idx_s - 1))) - 1) + 1)) : 2;
-        int col_addrs = (map_idx_d > 2) ? (map_idx_d - ((1 << ((int)ceil(log2(map_idx_d - 1))) - 1) + 1)) : 2;
-        if (row_addrs < 2)
-            row_addrs = 2;
-        if (col_addrs < 2)
-            col_addrs = 2;
-            
-        // addr_type* cur_addr_row = new addr_type[row_addrs];
-        // addr_type* cur_addr_col = new addr_type[col_addrs];
-        if (row_addrs > 255) {
-            cout << "Address number is bigger than 255!" << endl;
-            // delete[] cur_addr_row;
-            // cur_addr_row = new addr_type[row_addrs];
-        }
-        if (col_addrs > 255) {
-            // delete[] cur_addr_col;
-            // cur_addr_col = new addr_type[col_addrs];
-            cout << "Address number is bigger than 255!" << endl;
-        }
-
-        for (int i = 0; i < row_addrs; i++) {
-            cur_addr_row[i] = addr_row[map_idx_s - row_addrs + i];
-        }
-        for (int i = 0; i < col_addrs; i++) {
-            cur_addr_col[i] = addr_col[map_idx_d - col_addrs + i];
-        }
-        inserted = kick_out(cur_key_s, cur_key_d, cur_w, cur_addr_row, cur_addr_col, row_addrs, col_addrs);
-        delete[] cur_addr_row;
-        delete[] cur_addr_col;
-        if (!inserted)
-        {
-            // continually insert
-            bool inserted = fp_insert(cur_key_s, cur_key_d, cur_w);
-            if (!inserted)
-                cout << "You got a BIG problem!" << endl;
-        }
-    }
-    delete[] seed1;
-    delete[] seed2;
-    delete[] addr_row;
-    delete[] addr_col;
-    return true;
-}
 /***********************************************/
-
 // s is the ID of the source node, d is the ID of the destination node, w is the edge weight.
 bool ScubeKick::insert(string s, string d, w_type w) 
 {
@@ -493,19 +509,141 @@ bool ScubeKick::insert(string s, string d, w_type w)
     key_type key_s = (addr_s << fingerprint_length) + fp_s;
     key_type key_d = (addr_d << fingerprint_length) + fp_d;
 
-    // insert to the degDetector
-    degDetector->insert(key_s, key_d, hash_s, hash_d);
-    // insert to the hash matrix
-    bool inserted = fp_insert(key_s, key_d, w);
-    if (!inserted)
-        cout << "You got a problem!" << endl;
-    return inserted;
+    if (!this->slot2bit) 
+    {
+        // insert to the degDetector
+        if (!degDetector->insert(key_s, key_d, hash_s, hash_d))
+        {
+            cout << "Failed in inserting (" << s << ", " << d << ") to degree detector!" << endl;
+        }
+        // query the number of alternative addresses of each node
+        addr_type idx_s = degDetector->addrQuery(key_s, 0);
+        addr_type idx_d = degDetector->addrQuery(key_d, 1);
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        bool inserted = false;
+        if (res == -1)
+        {
+            // 直接先开始踢kick_times轮，踢完之后再判断踢出来的点是不是高度点
+            // √ 踢只在当前 “最新” 的两行踢 <先判断当前被踢的元素是否已经在矩阵中，是则直接插入，否则在“最新”的两行踢>
+            // × 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // 在当前 “最新” 的两行踢
+            // addr_type rows[2] = {addr_row[idx_s - 2], addr_row[idx_s - 1]};
+            // addr_type cols[2] = {addr_col[idx_d - 2], addr_col[idx_d - 1]};
+            // int row_addrs = 2;
+            // int col_addrs = 2;
+            //////////
+            // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // int row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+            // int col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+            // if (row_kicks < 2)
+            //     row_kicks = 2;
+            // if (col_kicks < 2)
+            //     col_kicks = 2;
+            // if (row_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // if (col_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            int row_kicks = 2;
+            int col_kicks = 2;
+            addr_type* rows = new addr_type[255];
+            addr_type* cols = new addr_type[255];
+            
+            for (int i = 0; i < row_kicks; i++) {
+                rows[i] = addr_rows[idx_s - row_kicks + i];
+            }
+            for (int i = 0; i < col_kicks; i++) {
+                cols[i] = addr_cols[idx_d - col_kicks + i];
+            }
+            inserted = kick_out(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, rows, cols, row_kicks, col_kicks);
+            delete[] rows;
+            delete[] cols;
+            if (!inserted)
+            {
+                cout << "Failed in inserting edge(" << s << ", " << d << ", " << w << ")!" << endl;
+            }
+        }
+        else
+        {
+            inserted = true;
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
+        return inserted;
+    }
+    else
+    {
+        // query the number of alternative addresses of each node
+        addr_type idx_s = degDetector->addrQuery(key_s, 0);
+        addr_type idx_d = degDetector->addrQuery(key_d, 1);
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        bool inserted = false;
+        if (res == 0 || res == -1) 
+        {
+            // update the degDetector
+            if (!degDetector->insert(key_s, key_d, hash_s, hash_d))
+            {
+                cout << "Failed in inserting (" << s << ", " << d << ") to degree detector!" << endl;
+            }
+        }
+        if (res == -1)
+        {
+            // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // int row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+            // int col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+            // if (row_kicks < 2)
+            //     row_kicks = 2;
+            // if (col_kicks < 2)
+            //     col_kicks = 2;
+            // if (row_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // if (col_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // 在当前row_kicks行、col_kicks列踢
+            int row_kicks = 2;
+            int col_kicks = 2;
+            addr_type* rows = new addr_type[255];
+            addr_type* cols = new addr_type[255];
+            
+            for (int i = 0; i < row_kicks; i++) {
+                rows[i] = addr_rows[idx_s - row_kicks + i];
+            }
+            for (int i = 0; i < col_kicks; i++) {
+                cols[i] = addr_cols[idx_d - col_kicks + i];
+            }
+            inserted = kick_out(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, rows, cols, row_kicks, col_kicks);
+            delete[] rows;
+            delete[] cols;
+            if (!inserted)
+            {
+                cout << "Failed in inserting edge(" << s << ", " << d << ", " << w << ")!" << endl;
+            }
+        }
+        else
+        {
+            inserted = true;
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
+        return inserted;
+    }
+    return true;
 }
-
-bool ScubeKick::insert(string s, string d, w_type w, double& kick_time, double& detector_ins_time) {
+// s is the ID of the source node, d is the ID of the destination node, w is the edge weight.
+bool ScubeKick::insert(string s, string d, w_type w, double& kick_time, double& detector_ins_time) 
+{
     kick_time = 0;
     detector_ins_time = 0;
-    
+
     hash_type hash_s = (*hfunc[HASH])((unsigned char*)(s.c_str()), s.length());
     hash_type hash_d = (*hfunc[HASH])((unsigned char*)(d.c_str()), d.length());
     hash_type mask = (1 << fingerprint_length) - 1;
@@ -521,150 +659,150 @@ bool ScubeKick::insert(string s, string d, w_type w, double& kick_time, double& 
     key_type key_s = (addr_s << fingerprint_length) + fp_s;
     key_type key_d = (addr_d << fingerprint_length) + fp_d;
 
-    timeval tp1, tp2;
-    gettimeofday( &tp1, NULL);
-    // insert to the degDetector
-    degDetector->insert(key_s, key_d, hash_s, hash_d);
-    // insert to the hash matrix
-    gettimeofday( &tp2, NULL);
-    detector_ins_time = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
-
-    bool inserted = fp_insert(key_s, key_d, w, kick_time, detector_ins_time);
-    if (!inserted)
-        cout << "You got a problem!" << endl;
-    return inserted;
-}
-bool ScubeKick::fp_insert(key_type key_s, key_type key_d, w_type w, double& kick_time, double& dector_query_time)
-{
-    // query the number of alternative addresses of each node
-    addr_type map_idx_s = degDetector->addrQuery(key_s, 0);
-    addr_type map_idx_d = degDetector->addrQuery(key_d, 1);
-
-    hash_type mask = (1 << fingerprint_length) - 1;
-    fp_type fp_s = key_s & mask;
-    fp_type fp_d = key_d & mask;
-    addr_type addr_s = key_s >> fingerprint_length;
-    addr_type addr_d = key_d >> fingerprint_length;
-
-    //  calculate the seeds
-    uint32_t* seed1 = new uint32_t[map_idx_s];
-    uint32_t* seed2 = new uint32_t[map_idx_d];
-    seed1[0] = fp_s;
-    for(int i = 1; i < map_idx_s; i++)
+    if (!this->slot2bit) 
     {
-        seed1[i] = (seed1[i - 1] * MUL + INC) % MOD;
-    }
-    seed2[0] = fp_d;
-    for(int i = 1; i < map_idx_d; i++)
-    {
-        seed2[i] = (seed2[i - 1] * MUL + INC) % MOD;
-    }
-
-    addr_type* addr_row = new addr_type[map_idx_s];
-    addr_type* addr_col = new addr_type[map_idx_d];
-    bool inserted = false;
-    bool empty = false;
-    uint16_t temp_idx = 0;
-    int temp_k = -1;
-    addr_type temp_pos = 0;
-    for (int i = 0; i < map_idx_s; i++)
-    {
-        addr_row[i] = (addr_s + seed1[i]) % depth;
-        for (int j = 0; j < map_idx_d; j++)
+        timeval tp1, tp2;
+        gettimeofday( &tp1, NULL);
+        // insert to the degDetector
+        if (!degDetector->insert(key_s, key_d, hash_s, hash_d))
         {
-            addr_col[j] = (addr_d + seed2[j]) % width;
-            addr_type pos = addr_row[i] * width + addr_col[j];
-            uint16_t idx = (i << 8) |  j;
-            for (int k = 0; k < ROOM; ++k)
-            {
-                if((value[pos].fp_src[k] == fp_s) && (value[pos].fp_dst[k] == fp_d) && (value[pos].ext[k] == idx)) 
-                {
-                    value[pos].weight[k] += w;
-                    inserted = true;
-                    break;
-                }
-                if(value[pos].fp_src[k] == 0 && !empty) // find an empty address
-                {
-                    empty = true;
-                    temp_idx = idx;
-                    temp_k = k;
-                    temp_pos = pos;
-                }
-            }
-            if(inserted)
-                break;
+            cout << "Failed in inserting (" << s << ", " << d << ") to degree detector!" << endl;
         }
-        if(inserted)
-            break;
-    }
-    if(!inserted && empty) 
-    {
-        value[temp_pos].ext[temp_k] = temp_idx;
-        value[temp_pos].fp_src[temp_k] = fp_s;
-        value[temp_pos].fp_dst[temp_k] = fp_d;
-        value[temp_pos].weight[temp_k] = w;
-        inserted = true;
-    }
-    
-    if (!inserted)
-    {
-        timeval tp3, tp4;
-        gettimeofday( &tp3, NULL);
-        // kick-out strategy
-        key_type cur_key_s = key_s;
-        key_type cur_key_d = key_d;
-        w_type cur_w = w;
+        gettimeofday( &tp2, NULL);
+        detector_ins_time = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
 
-        // addr_type cur_addr_row[2] = {addr_row[map_idx_s - 2], addr_row[map_idx_s - 1]};
-        // addr_type cur_addr_col[2] = {addr_col[map_idx_d - 2], addr_col[map_idx_d - 1]};
-        // inserted = kick_out(cur_key_s, cur_key_d, cur_w, cur_addr_row, cur_addr_col);
-        addr_type* cur_addr_row = new addr_type[255];
-        addr_type* cur_addr_col = new addr_type[255];
-
-        int row_addrs = (map_idx_s > 2) ? (map_idx_s - ((1 << ((int)ceil(log2(map_idx_s - 1))) - 1) + 1)) : 2;
-        int col_addrs = (map_idx_d > 2) ? (map_idx_d - ((1 << ((int)ceil(log2(map_idx_d - 1))) - 1) + 1)) : 2;
-        if (row_addrs < 2)
-            row_addrs = 2;
-        if (col_addrs < 2)
-            col_addrs = 2;
+        // query the number of alternative addresses of each node
+        addr_type idx_s = degDetector->addrQuery(key_s, 0);
+        addr_type idx_d = degDetector->addrQuery(key_d, 1);
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        bool inserted = false;
+        if (res == -1)
+        {
+            // 直接先开始踢kick_times轮，踢完之后再判断踢出来的点是不是高度点
+            // √ 踢只在当前 “最新” 的两行踢 <先判断当前被踢的元素是否已经在矩阵中，是则直接插入，否则在“最新”的两行踢>
+            // × 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // 在当前 “最新” 的两行踢
+            // addr_type rows[2] = {addr_row[idx_s - 2], addr_row[idx_s - 1]};
+            // addr_type cols[2] = {addr_col[idx_d - 2], addr_col[idx_d - 1]};
+            // int row_kicks = 2;
+            // int col_kicks = 2;
+            //////////
+            // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            timeval tp3, tp4;
+            gettimeofday( &tp3, NULL);
+            // int row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+            // int col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+            // if (row_kicks < 2)
+            //     row_kicks = 2;
+            // if (col_kicks < 2)
+            //     col_kicks = 2;
+            // if (row_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // if (col_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            int row_kicks = 2;
+            int col_kicks = 2;
+            addr_type* rows = new addr_type[255];
+            addr_type* cols = new addr_type[255];
             
-        // addr_type* cur_addr_row = new addr_type[row_addrs];
-        // addr_type* cur_addr_col = new addr_type[col_addrs];
-        if (row_addrs > 255) {
-            cout << "Address number is bigger than 255!" << endl;
-            // delete[] cur_addr_row;
-            // cur_addr_row = new addr_type[row_addrs];
-        }
-        if (col_addrs > 255) {
-            // delete[] cur_addr_col;
-            // cur_addr_col = new addr_type[col_addrs];
-            cout << "Address number is bigger than 255!" << endl;
-        }
-
-        for (int i = 0; i < row_addrs; i++) {
-            cur_addr_row[i] = addr_row[map_idx_s - row_addrs + i];
-        }
-        for (int i = 0; i < col_addrs; i++) {
-            cur_addr_col[i] = addr_col[map_idx_d - col_addrs + i];
-        }
-        inserted = kick_out(cur_key_s, cur_key_d, cur_w, cur_addr_row, cur_addr_col, row_addrs, col_addrs);
-        delete[] cur_addr_row;
-        delete[] cur_addr_col;
-        
-        if (!inserted)
-        {
-            // continually insert
-            bool inserted = fp_insert(cur_key_s, cur_key_d, cur_w);
+            for (int i = 0; i < row_kicks; i++) {
+                rows[i] = addr_rows[idx_s - row_kicks + i];
+            }
+            for (int i = 0; i < col_kicks; i++) {
+                cols[i] = addr_cols[idx_d - col_kicks + i];
+            }
+            inserted = kick_out(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, rows, cols, row_kicks, col_kicks);
+            delete[] rows;
+            delete[] cols;
             if (!inserted)
-                cout << "You got a BIG problem!" << endl;
+            {
+                cout << "Failed in inserting edge(" << s << ", " << d << ", " << w << ")!" << endl;
+            }
+            gettimeofday( &tp4, NULL);
+            kick_time = (tp4.tv_sec - tp3.tv_sec) * 1000000 +  (tp4.tv_usec - tp3.tv_usec);
         }
-        gettimeofday( &tp4, NULL);
-        kick_time = (tp4.tv_sec - tp3.tv_sec) * 1000000 +  (tp4.tv_usec - tp3.tv_usec);
+        else
+        {
+            inserted = true;
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
+        return inserted;
     }
-    delete[] seed1;
-    delete[] seed2;
-    delete[] addr_row;
-    delete[] addr_col;
+    else
+    {
+        // query the number of alternative addresses of each node
+        addr_type idx_s = degDetector->addrQuery(key_s, 0);
+        addr_type idx_d = degDetector->addrQuery(key_d, 1);
+        addr_type* addr_rows = new addr_type[idx_s];
+        addr_type* addr_cols = new addr_type[idx_d];
+        // insert to the hash matrix
+        int res = insert_matrix(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, addr_rows, addr_cols);
+        bool inserted = false;
+        if (res == 0 || res == -1) 
+        {
+            timeval tp1, tp2;
+            gettimeofday( &tp1, NULL);
+            // update the degDetector
+            if (!degDetector->insert(key_s, key_d, hash_s, hash_d))
+            {
+                cout << "Failed in inserting (" << s << ", " << d << ") to degree detector!" << endl;
+            }
+            gettimeofday( &tp2, NULL);
+            detector_ins_time = (tp2.tv_sec - tp1.tv_sec) * 1000000 +  (tp2.tv_usec - tp1.tv_usec);
+        }
+        if (res == -1)
+        {
+            timeval tp3, tp4;
+            gettimeofday( &tp3, NULL);
+            // 在当前( n - (2^(ceil(log2(n - 1) - 1)) + 1) )行踢，因为正常通过DegDetector扩展的地址序列为2, 3, 5, 9, 17, 33...
+            // int row_kicks = (idx_s > 2) ? (idx_s - ((1 << ((int)ceil(log2(idx_s - 1))) - 1) + 1)) : 2;
+            // int col_kicks = (idx_d > 2) ? (idx_d - ((1 << ((int)ceil(log2(idx_d - 1))) - 1) + 1)) : 2;
+            // if (row_kicks < 2)
+            //     row_kicks = 2;
+            // if (col_kicks < 2)
+            //     col_kicks = 2;
+            // if (row_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // if (col_kicks > 255) {
+            //     cout << "Address number is bigger than 255!" << endl;
+            // }
+            // 在当前row_kicks行、col_kicks列踢
+            int row_kicks = 2;
+            int col_kicks = 2;
+            addr_type* rows = new addr_type[255];
+            addr_type* cols = new addr_type[255];
+            
+            for (int i = 0; i < row_kicks; i++) {
+                rows[i] = addr_rows[idx_s - row_kicks + i];
+            }
+            for (int i = 0; i < col_kicks; i++) {
+                cols[i] = addr_cols[idx_d - col_kicks + i];
+            }
+            inserted = kick_out(addr_s, fp_s, addr_d, fp_d, w, idx_s, idx_d, rows, cols, row_kicks, col_kicks);
+            delete[] rows;
+            delete[] cols;
+            if (!inserted)
+            {
+                cout << "Failed in inserting edge(" << s << ", " << d << ", " << w << ")!" << endl;
+            }
+            gettimeofday( &tp4, NULL);
+            kick_time = (tp4.tv_sec - tp3.tv_sec) * 1000000 +  (tp4.tv_usec - tp3.tv_usec);
+        }
+        else
+        {
+            inserted = true;
+        }
+        delete[] addr_rows;
+        delete[] addr_cols;
+        return inserted;
+    }
     return true;
 }
 
@@ -684,9 +822,9 @@ w_type ScubeKick::edgeWeightQuery(string s, string d) // s1 is the ID of the sou
     key_type key_s = (addr_s << fingerprint_length) + fp_s;
     key_type key_d = (addr_d << fingerprint_length) + fp_d;
 
-    // query the address number of the current node
-    addr_type map_idx_s = degDetector->addrQuery(key_s, 0);
-    addr_type map_idx_d = degDetector->addrQuery(key_d, 1);
+    // 查询当前顶点的地址数
+    addr_type map_idx_s = degDetector->addrQuery(key_s, 0);   // 从degDetector中获取指纹对应的map_index
+    addr_type map_idx_d = degDetector->addrQuery(key_d, 1);   // 从degDetector中获取指纹对应的map_index
     
     //  calculate the seeds
     uint32_t* seed1 = new uint32_t[map_idx_s];
@@ -702,7 +840,7 @@ w_type ScubeKick::edgeWeightQuery(string s, string d) // s1 is the ID of the sou
         seed2[i] = (seed2[i - 1] * MUL + INC) % MOD;
     }
 
-    // query
+    //查询
     w_type res = 0;
     int hit = 0;
     for (int i = 0; i < map_idx_s; ++i)
@@ -733,7 +871,7 @@ w_type ScubeKick::edgeWeightQuery(string s, string d) // s1 is the ID of the sou
     return res;
 }
 /* type 0 is for successor query, type 1 is for precusor query */
-uint32_t ScubeKick::nodeWeightQuery(string v, int type) // s1 is the ID of the queried node, function for node query.
+uint32_t ScubeKick::nodeWeightQuery(string v, int type)
 {
     uint32_t sum_weight = 0;
     hash_type hash_v = (*hfunc[HASH])((unsigned char*)(v.c_str()), v.length());
@@ -745,8 +883,8 @@ uint32_t ScubeKick::nodeWeightQuery(string v, int type) // s1 is the ID of the q
     {
         addr_type addr_v = (hash_v >> fingerprint_length) % depth;
         key_type key_v = (addr_v << fingerprint_length) + fp_v;
-        // query the address number of the current node
-        addr_type map_idx_s = degDetector->addrQuery(key_v, 0);
+        // 查询当前顶点的地址数
+        addr_type map_idx_s = degDetector->addrQuery(key_v, 0);   // 从degDetector中获取指纹对应的map_index
         //  calculate the seeds
         uint32_t* seed1 = new uint32_t[map_idx_s];
         seed1[0] = fp_v;
@@ -775,8 +913,8 @@ uint32_t ScubeKick::nodeWeightQuery(string v, int type) // s1 is the ID of the q
     {
         addr_type addr_v = (hash_v >> fingerprint_length) % width;
         key_type key_v = (addr_v << fingerprint_length) + fp_v;
-        // query the address number of the current node
-        addr_type map_idx_d = degDetector->addrQuery(key_v, 1);
+        // 查询当前顶点的地址数
+        addr_type map_idx_d = degDetector->addrQuery(key_v, 1);   // 从degDetector中获取指纹对应的map_index
         //  calculate the seeds
         uint32_t* seed2 = new uint32_t[map_idx_d];
         seed2[0] = fp_v;
@@ -805,7 +943,8 @@ uint32_t ScubeKick::nodeWeightQuery(string v, int type) // s1 is the ID of the q
 }
 
 /* type 0 is for successor query, type 1 is for precusor query */
-uint32_t ScubeKick::nodeWeightQueryTime(string v, int type, double& matrix_time, double& addr_time) // s1 is the ID of the queried node, function for node query.
+// v is the ID of the queried node, function for node query.
+uint32_t ScubeKick::nodeWeightQuery(string v, int type, double& matrix_time, double& addr_time) 
 {
     matrix_time = 0;
     addr_time = 0;
@@ -822,9 +961,9 @@ uint32_t ScubeKick::nodeWeightQueryTime(string v, int type, double& matrix_time,
     {
         addr_type addr_v = (hash_v >> fingerprint_length) % depth;
         key_type key_v = (addr_v << fingerprint_length) + fp_v;
-        // query the address number of the current node
+        // 查询当前顶点的地址数
         gettimeofday( &ts1, NULL);
-        addr_type map_idx_s = degDetector->addrQuery(key_v, 0);
+        addr_type map_idx_s = degDetector->addrQuery(key_v, 0);   // 从degDetector中获取指纹对应的map_index
         gettimeofday( &te1, NULL);
         addr_time = (te1.tv_sec - ts1.tv_sec) * 1000000 +  (te1.tv_usec - ts1.tv_usec);
         //  calculate the seeds
@@ -857,9 +996,9 @@ uint32_t ScubeKick::nodeWeightQueryTime(string v, int type, double& matrix_time,
     {
         addr_type addr_v = (hash_v >> fingerprint_length) % width;
         key_type key_v = (addr_v << fingerprint_length) + fp_v;
-        // query the address number of the current node
+        // 查询当前顶点的地址数
         gettimeofday( &ts1, NULL);
-        addr_type map_idx_d = degDetector->addrQuery(key_v, 1);
+        addr_type map_idx_d = degDetector->addrQuery(key_v, 1);   // 从degDetector中获取指纹对应的map_index
         gettimeofday( &te1, NULL);
         addr_time = (te1.tv_sec - ts1.tv_sec) * 1000000 +  (te1.tv_usec - ts1.tv_usec);
         //  calculate the seeds
@@ -907,7 +1046,8 @@ uint32_t ScubeKick::nodeWeightQueryTime(string v, int type, double& matrix_time,
     return sum_weight;
 }
 
-bool ScubeKick::reachabilityQuery(string s, string d)  // s1 is the ID of the source node, s2 is the ID of the destination node, return whether reachable.
+// s is the ID of the source node, d is the ID of the destination node, return whether reachable.
+bool ScubeKick::reachabilityQuery(string s, string d)  
 {
     hash_type hash_s = (*hfunc[HASH])((unsigned char*)(s.c_str()), s.length());
     hash_type hash_d = (*hfunc[HASH])((unsigned char*)(d.c_str()), d.length());
@@ -1032,7 +1172,8 @@ bool ScubeKick::reachabilityQuery(string s, string d)  // s1 is the ID of the so
 	return false;
 }
 
-bool ScubeKick::reachabilityQuery(string s, string d, int& points, int& lines)  // s1 is the ID of the source node, s2 is the ID of the destination node, return whether reachable.
+// s is the ID of the source node, d is the ID of the destination node, return whether reachable.
+bool ScubeKick::reachabilityQuery(string s, string d, int& points, int& lines)  
 {
     hash_type hash_s = (*hfunc[HASH])((unsigned char*)(s.c_str()), s.length());
     hash_type hash_d = (*hfunc[HASH])((unsigned char*)(d.c_str()), d.length());
@@ -1203,4 +1344,4 @@ void ScubeKick::printUsageInfo()
     cout << "----------------------------------------------------" << endl;
 }
 
-#endif // _ScubeKick_H
+#endif // _SCUBEKICK_H

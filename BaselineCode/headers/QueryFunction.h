@@ -206,6 +206,60 @@ int insert(T& tcm, string filename, int type, int data_interval) {		// int data_
 	return 0;
 }
 
+void count_num(uint64_t* datanum, uint64_t* end_num) {
+	while(*datanum != *end_num) {
+		printf("datanum = %lu\n", *datanum);
+		sleep(1);
+	}
+}
+
+template <class T>
+int insert_tp_time(T& tcm, string filename, int type) {		// int data_interval-10000为单位
+	ifstream ifs;
+	ifs.open(filename);
+	if (!ifs.is_open()) {
+		cout << "Error in open file, Path = " << filename << endl;
+		return -1;
+	}
+	uint32_t s, d, w, t;
+#if defined(DEBUG) || defined(INFO)
+	cout << "Inserting..." << endl;
+	uint64_t total = count_lines(filename);
+	if(total == 0)
+		cout << "ERROR--QueryFunction--258" <<endl;
+#endif
+	uint64_t datanum = 0;
+	int newv = 0, oldv = 0;
+	int dn = 0;	
+
+	thread* child = new thread(count_num, &datanum, &total);
+
+	while (!ifs.eof()) {
+		if (type == 0) {
+			ifs >> s >> d >> w >> t;
+			tcm.insert(to_string(s), to_string(d), w);
+		}
+		else if (type == 1) {
+			ifs >> s >> d >> t;
+			tcm.insert(to_string(s), to_string(d), 1);
+		}
+		else if (type == 2) {
+			ifs >> s >> d;
+			tcm.insert(to_string(s), to_string(d), 1);
+		}
+		if(ifs.fail())
+			break;
+		datanum++;
+	}
+#if defined(DEBUG) || defined(INFO)
+	cout << "Insertion Finished!" << endl;
+	cout << "Datanum = " << datanum << endl;
+#endif
+	ifs.close();
+	child->join();
+	return 0;
+}
+
 template <class T>
 int insert(T& tcm, string filename, int type, int data_interval, int fplen, int width, int depth, map<uint32_t, set<uint32_t>>& acc_out_deg, map<uint32_t, set<uint32_t>>& acc_in_deg) {		// int data_interval-10000为单位
 	ifstream ifs;
