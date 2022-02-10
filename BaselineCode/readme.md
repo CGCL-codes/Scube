@@ -1,14 +1,19 @@
-# This project contains two baseline
+# This project contains two baselines
 ## Code
 + TCM
 + GSS
 ----
 The core file of the code is from the website：
 `https://github.com/Puppy95/Graph-Stream-Sketch`
+
+
 ## makefile
 + commands
     1. make
     2. make clean
+
+## run
+After executing the 'make' command, we get the two executable files, tcm and gss. 
 
 ----
 
@@ -22,8 +27,7 @@ Graph Stream Sketch user interface:
 * insert: Insert one item
 * edgeQuery: Edge Query
 * transquery: Reachability Query
-* nodeValueQuery: Node Value Query to compute the summary of the weights of all edges
-  with s1. When s1 is the source node,type = 0. s1 is the destination node,type = 1.
+* nodeValueQuery: Node Value Query to compute the summary of the weights of all edges with s1. When s1 is the source node,type = 0. s1 is the destination node,type = 1.
 * nodeDegreeQuery: Node  Degree Query to compute the number of the precursors(type=1)/successors(type=0) of s1.
 * nodeSuccessorQuery: Query for the successor of a given node
 * nodePrecursorQuery: Query for the precursor of a given node

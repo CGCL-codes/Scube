@@ -3,7 +3,7 @@
 #include <iostream>
 #include <memory.h>
 #include <queue>
-#include "HashFunction.h"
+#include "hashfunctions.h"
 using namespace std;
 
 class TCM {

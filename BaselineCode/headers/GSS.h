@@ -1,15 +1,15 @@
-#include<iostream>
-#include<string>
-#include<vector>
-#include<queue>
-#include<set>
-#include<map>
-#include<cmath>
-#include<stdlib.h>
-#include<bitset>
-#include<memory.h>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <queue>
+#include <set>
+#include <map>
+#include <cmath>
+#include <stdlib.h>
+#include <bitset>
+#include <memory.h>
 #include <sys/time.h>
-#include "HashFunction.h"
+#include "hashfunctions.h"
 using namespace std;
 #define prime 739
 #define bigger_p 1048576
@@ -630,7 +630,7 @@ bool GSS::reachabilityQuery(string s1, string s2) {  // s1 is the ID of the sour
 							shifter = (shifter*timer + prime) % bigger_p;
 						int tmp_h = i2;
 						while (tmp_h < shifter)
-							tmp_h += width;				/////////
+							tmp_h += width;
 						tmp_h -= shifter;
 
 						unsigned int val = (tmp_h << fingerprint_length) + tmp_g;
@@ -681,11 +681,11 @@ bool GSS::reachabilityQuery(string s1, string s2, int& points, int& lines) {  //
 	while (!q.empty())
 	{
 		e = q.front();
-		points++;       //////////////////
+		points++;
 		h1 = e.h;
 		g1 = e.g;
 		int* tmp1 = new int[r];
-		lines += r;          //////////////////
+		lines += r;
 		int* tmp2 = new int[r];
 		tmp2[0] = g2;
 		tmp1[0] = g1;
