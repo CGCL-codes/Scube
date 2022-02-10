@@ -7,7 +7,6 @@ using namespace std;
 class DegDetector
 {
 public:
-    // const double threshold = 0.8;           // the threshold of row/column
     const uint32_t matrix_width = 0;        // the width of the matrix
     const uint32_t matrix_depth = 0;        // the depth of the matrix
     DegDetector() { cout << "DegDetector::DegDetector()" << endl; }

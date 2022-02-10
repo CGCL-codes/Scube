@@ -51,8 +51,8 @@ template <class T>
 uint32_t nodeFrequenceQueryTest(T& tcm, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag);
 template <class T>
 uint32_t reachabilityQueryTest(T& tcm, string input_file_header, string output_file_header, int query_times, bool write);
-
 /***************** function declaration ***********************/
+
 int isFolderExist(char* folder) {
 	int ret = 0;
 	ret = access(folder, R_OK | W_OK);
@@ -151,7 +151,7 @@ int insert(T& tcm, string filename, int type, int data_interval) {		// int data_
 	cout << "Inserting..." << endl;
 	double total = count_lines(filename);
 	if(total == 0)
-		cout << "ERROR--QueryFunction--134" <<endl;
+		cout << "ERROR--queryfunctions--154" <<endl;
 #endif
 #if defined(DEBUG) || defined(TINSTIME) || defined(BINSTIME) || defined(HINT)
 	timeval ins_start, ins_end;	
@@ -246,7 +246,7 @@ int insert_tp_time(T& tcm, string filename, int type) {					// int data_interval
 #endif
 	uint64_t total = count_lines(filename);
 	if(total == 0)
-		cout << "ERROR--QueryFunction--258" <<endl;
+		cout << "ERROR--queryfunctions--249" <<endl;
 	uint64_t datanum = 0;
 	int newv = 0, oldv = 0;
 	int dn = 0;	
@@ -353,6 +353,7 @@ uint32_t edgeFrequenceQueryTest(T& tcm, string input_dir, string output_dir, str
 	}
 	return 0;
 }
+
 template <class T>
 uint32_t allEdgeFrequenceQuery(T& egss, string input_dir, string output_dir, string dataset_name, bool write, uint32_t n) {
 	string tail = "repeat-" + to_string(n);
@@ -428,6 +429,7 @@ uint32_t allEdgeFrequenceQuery(T& egss, string input_dir, string output_dir, str
 #endif
 	return 0;
 }
+
 template <class T>
 uint32_t edgeExistenceQueryTest(T& tcm, string input_dir, string output_dir, string dataset_name, int query_times, bool write) {
 	string input_file_prefix = "_bool_";
@@ -500,6 +502,7 @@ uint32_t edgeExistenceQueryTest(T& tcm, string input_dir, string output_dir, str
 #endif
 	return 0;
 }
+
 template <class T>
 uint32_t nodeFrequenceQueryTest(T& tcm, string input_dir, string output_dir, string dataset_name, vector<int> num, int query_times, bool write, int flag) {
 	string file_suffix = ".txt";
@@ -586,6 +589,7 @@ uint32_t nodeFrequenceQueryTest(T& tcm, string input_dir, string output_dir, str
 	}
 	return 0;
 }
+
 template <class T>
 uint32_t reachabilityQueryTest(T& tcm, string input_file_header, string output_file_header, int query_times, bool write) {
 	string input_file_suffix = ".txt";

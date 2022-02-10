@@ -16,13 +16,13 @@ using namespace std;
 class DegDetectorSlot2bit: public DegDetector
 {
 private:
-    const int BITVECBITS = 2;      // slot.value中高BITVECBITS位作为bitvector
-    const int UPDATEBITS = 8;      // slot.value中UPDATEBITS位作为update_times
-    const int ADDRBITS = 8;        // slot.value中低ADDRBITS位作为addr
+    const int BITVECBITS = 2;      // take the high 2 bits of slot.value as bitvector
+    const int UPDATEBITS = 8;      // take the another 8 bits of slot.value as update_times
+    const int ADDRBITS = 6;        // take the low 6 bits of slot.value as address number
     struct slot
     {
-        key_type slot_key;          // 最低位作为指针标记
-        slot_value_type value;      // 高2bit作为bitvector, 6bit作为update_times, 低8位作为addr
+        key_type slot_key;          // the least significant bit is marked as a pointer
+        slot_value_type value;      // split the field into three parts. [bitvector(2 bits), update_times(8 bits), address number(6 bits)]
     };
     slot_value_type addr_mask;
     slot_value_type update_mask;
@@ -34,11 +34,11 @@ private:
     int ignored_bits;
     int reserved_bits;
     uint32_t hash_mask = 0;
-    double alpha = 0.8;             // 根据alpha * width算备选地址个数
+    double alpha = 0.8;
     double exp_deg;
 
-    set<uint32_t> extend_s_index;    // 存储有扩展链slot的地址index
-    set<uint32_t> extend_d_index;    // 存储有扩展链slot的地址index
+    set<uint32_t> extend_s_index;
+    set<uint32_t> extend_d_index;
 
 public:
     DegDetectorSlot2bit(uint32_t matrix_width, uint32_t matrix_depth, uint32_t slotNum, double exp_deg, int ignored_bits, int reserved_bits = 2, double alpha = 0.8, int update_bits = 8, int addr_bits = 6);
@@ -145,13 +145,6 @@ DegDetectorSlot2bit::slot* DegDetectorSlot2bit::recoverPointer(slot s)
     return (slot *) ((((uint64_t)s.slot_key) << 32) | s.value);
 }
 
-// "链表"尾部扩展, addr为数组index
-// 1. new一个slot, 并清空
-// 2. 找到链表尾部的slot
-// 3. 将尾部的slot第SLOTNUM-2个ROOM的key的最低位设置为1
-// 4. 将尾部的slot的第SLOTNUM-1个ROOM的值复制到new slot的第1个ROOM中
-// 5. 将尾部的slot的第SLOTNUM-1个ROOM设置为new slot的指针
-// 6. 将待存储的点存储到new slot的第二个ROOM中
 bool DegDetectorSlot2bit::addSlot(uint32_t addr, int type, key_type key, slot_value_type slot_value)
 {
     if (type == 0)
@@ -167,7 +160,7 @@ bool DegDetectorSlot2bit::addSlot(uint32_t addr, int type, key_type key, slot_va
     if (new_slot == NULL)
         return false;
     
-    if ((slots[addr * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1)      // 不是第一次扩展
+    if ((slots[addr * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1)      // not extend for the first time
     { 
         slot* rec = recoverPointer(slots[addr * SLOTROOM + SLOTROOM - 1]);
         while (true) 
@@ -182,32 +175,29 @@ bool DegDetectorSlot2bit::addSlot(uint32_t addr, int type, key_type key, slot_va
         new_slot[0].value = rec[SLOTROOM - 1].value;
         new_slot[1].slot_key = (key << 1);
         new_slot[1].value = slot_value;
-        // 将数组中的第SLOTNUM - 1个单元的两个字段设置为指针
+        // set the two fields of the (SLOTNUM - 1)th cell in the array to pointers
         rec[SLOTROOM - 1].slot_key = ((uint64_t) new_slot >> 32);       
         rec[SLOTROOM - 1].value = ((uint64_t) new_slot & 0xffffffff);
     }
-    else   // 第一次扩展
+    else   // extend for the first time
     {    
         slots[addr * SLOTROOM + SLOTROOM - 2].slot_key |= 1;
         new_slot[0].slot_key = slots[addr * SLOTROOM + SLOTROOM - 1].slot_key;
         new_slot[0].value = slots[addr * SLOTROOM + SLOTROOM - 1].value;
         new_slot[1].slot_key = (key << 1);
         new_slot[1].value = slot_value;
-        // 将数组中的第SLOTNUM - 1个单元的两个字段设置为指针
+        // set the two fields of the (SLOTNUM - 1)th cell in the array to pointers
         slots[addr * SLOTROOM + SLOTROOM - 1].slot_key = ((uint64_t) new_slot >> 32);       
         slots[addr * SLOTROOM + SLOTROOM - 1].value = ((uint64_t) new_slot & 0xffffffff);
     }
     return true;
 }
 
-// 只对potential high degree进行衰退（衰退说明该key不存在与对应slot(链)中，因为在插入的时候已经遍历过一次slot(链)，另外执行扩展说明前面的节点都是高度点，此时只需对尾slot进行衰退）
-// 有链的话直接拿到尾slot，对尾slot中的room进行衰退
-// 如果尾slot都被高度点占满，此时扩展节点
 bool DegDetectorSlot2bit::decayStrategy(uint32_t addr, int type, key_type key, int update_bit)
 {
     slot* slots = (type == 0) ? out_slots : in_slots;
     slot* decay_slot = NULL;
-    if ((slots[addr * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1)      // slot有链，直接拿到尾slot
+    if ((slots[addr * SLOTROOM + SLOTROOM - 2].slot_key & 1) == 1)      // the slot has a pointer, directly get the tail slot
     {
         slot* rec = recoverPointer(slots[addr * SLOTROOM + SLOTROOM - 1]);
         while (true) 
@@ -219,13 +209,12 @@ bool DegDetectorSlot2bit::decayStrategy(uint32_t addr, int type, key_type key, i
         }
         decay_slot = rec;
     }
-    else        // slot无链
+    else
     {
         decay_slot = &(slots[addr * SLOTROOM]);
     }
     
     // we kick out the minimum element in the slot according to the hash value by probability
-    // decay_slot中全部为高度点时，直接进行扩展
     int index = -1;
     int min_update = INT32_MAX;
     for (int i = 0; i < SLOTROOM; i++) 
@@ -240,7 +229,7 @@ bool DegDetectorSlot2bit::decayStrategy(uint32_t addr, int type, key_type key, i
             }
         }
     }
-    // 所有ROOM里面的点都是高度点，直接进行扩展
+    // all the points in the ROOM are high-degree nodes, we just do the expanded operation directly.
     if (index == -1)    
     {
         if (!addSlot(addr, type, key, ((1 << (ADDRBITS + UPDATEBITS + update_bit)) | 2)))
@@ -251,29 +240,25 @@ bool DegDetectorSlot2bit::decayStrategy(uint32_t addr, int type, key_type key, i
     }
     else
     {
-        // 对potential high degree点进行衰退
-        // 如果slot中的bit vector为0
         if ((decay_slot[index].value & bitvec_mask) == 0)
         {
-            // 如果update times也为0，这个时候直接替换即可
             if ((decay_slot[index].value & update_mask) == 0)
             {
                 decay_slot[index].slot_key = (key << 1);
-                decay_slot[index].value = ((1 << (ADDRBITS + UPDATEBITS + update_bit)) | 2);   // 初始(potential high degree)地址设置为2
+                decay_slot[index].value = ((1 << (ADDRBITS + UPDATEBITS + update_bit)) | 2);   // the initial address of potential high degree node is set to 2
             }
-            else        // 否则update times--
+            else
             {
                 decay_slot[index].value -= (1 << ADDRBITS);
             }
         }
-        else    // 如果slot中的bit vector不为0
+        else
         {
-            // 如果bit vector对应的update bit为1，则直接将其置为0
             if (((decay_slot[index].value & (1 << (ADDRBITS + UPDATEBITS + update_bit))) != 0))
             {
                 decay_slot[index].value -= (1 << (ADDRBITS + UPDATEBITS + update_bit));
             }
-            else    // 将bit vector置为0
+            else
             {
                 decay_slot[index].value &= (~bitvec_mask);
             }
@@ -283,8 +268,6 @@ bool DegDetectorSlot2bit::decayStrategy(uint32_t addr, int type, key_type key, i
 }
 
 // update slot
-// 对于高度点不进行衰退，如果某个slot都被高度点占满，
-// 则判断SLOTNUM - 2中key的最高位bit是不是1，是1则说明SLOTNUM - 1中存储的是指针（一个指针64bit）
 bool DegDetectorSlot2bit::insertSlot(key_type key, int update_bit, int type)
 {
     slot* slots = (type == 0) ? out_slots : in_slots;
@@ -301,9 +284,9 @@ bool DegDetectorSlot2bit::insertSlot(key_type key, int update_bit, int type)
         {
             if (i == SLOTROOM - 1)
             {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // the last ROOM stores a pointer
                 {
-                    // 恢复指针
+                    // restore the pointer
                     ptr = recoverPointer(ptr[SLOTROOM - 1]);
                     break;
                 }
@@ -356,25 +339,12 @@ bool DegDetectorSlot2bit::insertSlot(key_type key, int update_bit, int type)
                     }
                 }
                 return true;
-                
-                // 两个连续“1”才是高度点
-                // if (k > 1) {
-                //     // addr_type ad = (addr_type) max (ceil((double)((1 << (k + ignored_bits)) / phi) / theta), 2.0);
-                //     // addr_type ad = (addr_type) max (ceil((double)(((1 << ignored_bits) + (1 << k) - ignored_bits - 1.0 / (1 << ignored_bits)) / phi) / theta), 2.0);
-                //     addr_type ad = (addr_type) max (ceil((double)(EXPDEG(ignored_bits, k) / theta)), 2.0);
-                //     if ((ptr[i].value & addr_mask) < ad) 
-                //     {
-                //         ptr[i].value &= 0xffffff00;
-                //         ptr[i].value |= ad;
-                //     }
-                // }
-                // return true;
             }
             // if the slot is empty
             else if ((ptr[i].slot_key == 0) && (ptr[i].value == 0)) 
             {
                 ptr[i].slot_key = (key << 1);
-                ptr[i].value = ((1 << (ADDRBITS + UPDATEBITS + update_bit)) | 2);   // 初始(potential high degree)地址设置为2
+                ptr[i].value = ((1 << (ADDRBITS + UPDATEBITS + update_bit)) | 2);   // the initial address of potential high degree node is set to 2
                 return true;
             }
         }
@@ -388,9 +358,6 @@ bool DegDetectorSlot2bit::insertSlot(key_type key, int update_bit, int type)
 }
 
 // insert elements to the degree detector
-// 1. 对于hash值中l1p大于等于ignored_bits，插入到slot里面去，否则忽略；
-// 2. 对potential high degree进行衰退；
-// 3. 在查询的时候判断是否是高度点，判断方法是bit vector中是否存在两个连续的1
 bool DegDetectorSlot2bit::insert(key_type s, key_type d, hash_type hash_s, hash_type hash_d)
 {
     bool res = true;
@@ -485,9 +452,9 @@ uint32_t DegDetectorSlot2bit::degQuery(key_type key, int type)
         {
             if (i == SLOTROOM - 1)
             {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // the last ROOM stores a pointer
                 {
-                    // 恢复指针
+                    // restore the pointer
                     ptr = recoverPointer(ptr[SLOTROOM - 1]);
                     break;
                 }
@@ -511,7 +478,7 @@ uint32_t DegDetectorSlot2bit::degQuery(key_type key, int type)
 
 addr_type DegDetectorSlot2bit::addrQuery(key_type key, int type) 
 {
-    // 初始给所有的点都设为2轮，0，1
+    // the initial address for all nodes is set to 2
     // addr_type res_ad = 2;
     slot* slots = (type == 0) ? out_slots : in_slots;
     uint32_t slot_index = key % slot_num;
@@ -524,9 +491,9 @@ addr_type DegDetectorSlot2bit::addrQuery(key_type key, int type)
         {
             if (i == SLOTROOM - 1)
             {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // the last ROOM stores a pointer
                 {
-                    // 恢复指针
+                    // restore the pointer
                     ptr = recoverPointer(ptr[SLOTROOM - 1]);
                     break;
                 }
@@ -549,7 +516,6 @@ addr_type DegDetectorSlot2bit::addrQuery(key_type key, int type)
 
 bool DegDetectorSlot2bit::extendAddr(key_type key, addr_type n, int type) 
 {
-    // cout << "key = " << key << ", n = " << n << endl;
     bool res = false;
     if (n < 2)
     {
@@ -560,7 +526,7 @@ bool DegDetectorSlot2bit::extendAddr(key_type key, addr_type n, int type)
     {
         cout << "extendAddr(n = " << n << ") is out of range! Considering add more bits to ADDRBITS." << endl;
     }
-    // 首先查找slots中是否有key
+    // first find out if there is a key in the slots
     slot* slots = (type == 0) ? out_slots : in_slots;
     uint32_t slot_index = key % slot_num;
 
@@ -572,9 +538,9 @@ bool DegDetectorSlot2bit::extendAddr(key_type key, addr_type n, int type)
         {
             if (i == SLOTROOM - 1)
             {
-                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // 说明最后一个ROOM存储的是指针
+                if ((ptr[SLOTROOM - 2].slot_key & 1) == 1)              // the last ROOM stores a pointer
                 {
-                    // 恢复指针
+                    // restore the pointer
                     ptr = recoverPointer(ptr[SLOTROOM - 1]);
                     break;
                 }
@@ -595,23 +561,18 @@ bool DegDetectorSlot2bit::extendAddr(key_type key, addr_type n, int type)
             if ((ptr[i].slot_key == 0) && (ptr[i].value == 0)) 
             {
                 ptr[i].slot_key = (key << 1);
-                // ptr[i].value = ((dHashValue << 8) | n);   // 地址设置为n
-                ptr[i].value = n;   // 地址设置为n
+                ptr[i].value = n;   // the address number is set to n
                 return true;
             }
         }
     }
 
-    // 没有空的room，扩展
+    // there is no empty room, we just do the extended operation
     if (!addSlot(slot_index, type, key, n))
     {
         cout << "addSlot() error!" << endl;
         return false;
     }
-    // else 
-    // {
-    //     cout << "extendAddr-addSlot(" << slot_index << ", " << type << ", " << key << ", " << n << ")" << endl;
-    // }
     return true;
 }
 
@@ -695,19 +656,6 @@ void DegDetectorSlot2bit::printUsage()
         if (out_slots[i].slot_key != 0) 
             out_count++;
     }
-
-    // cout << "set<uint32_t> extend_s_index: " << endl;
-    // for (set<uint32_t>::iterator iter = extend_s_index.begin(); iter != extend_s_index.end(); iter++)
-    // {
-    //     cout << *iter << ", ";
-    // }
-    // cout << endl;
-    // cout << "set<uint32_t> extend_d_index: " << endl;
-    // for (set<uint32_t>::iterator iter = extend_d_index.begin(); iter != extend_d_index.end(); iter++)
-    // {
-    //     cout << *iter << ", ";
-    // }
-    // cout << endl;
 
     cout << "------------------DegDeteSlot----------------------" << endl;
     cout << "in_count = " << in_count << ", in_slot size = " << (slot_num * SLOTROOM)

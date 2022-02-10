@@ -12,7 +12,7 @@
 #ifdef ROOM1
 #define ROOM 1	// This is the parameter to controll the maximum number of rooms in a bucket. 
 #else
-#define ROOM 2 // This is the parameter to controll the maximum number of rooms in a bucket.
+#define ROOM 2  // This is the parameter to controll the maximum number of rooms in a bucket.
 #endif
 
 #ifdef SR2
@@ -24,18 +24,6 @@
 #else
 #define SLOTROOM 16
 #endif
-
-// #ifdef SR1
-// #define SLOTROOM 1
-// #elif SR2
-// #define SLOTROOM 2
-// #elif SR4
-// #define SLOTROOM 4
-// #elif SR8
-// #define SLOTROOM 8
-// #else
-// #define SLOTROOM 16
-// #endif
 
 typedef uint16_t fp_type;
 // typedef uint16_t w_type;
