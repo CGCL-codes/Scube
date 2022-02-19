@@ -130,25 +130,33 @@ int main(int argc, char* argv[]) {
 	
 	switch (dataset) {
 		case 1:
-			dataset_file_path = "..//..//Dataset//wiki-talk";
+			dataset_file_path = "..//Dataset//wiki-talk";
+			input_dir = "..//TestFiles//wiki-talk//input//";
+			output_dir = "..//TestFiles//wiki-talk//output//";
 			dataset_name = "wiki-talk";
             width = 3536;
 			depth = 3536;
 			break;
 		case 2:
-			dataset_file_path = "..//..//Dataset//stackoverflow";
+			dataset_file_path = "..//Dataset//stackoverflow";
+			input_dir = "..//TestFiles//stackoverflow//input//";
+			output_dir = "..//TestFiles//stackoverflow//output//";
 			dataset_name = "stackoverflow";
 			width = 5656;
 			depth = 5656;
 			break;
 		case 3:
-			dataset_file_path = "..//..//Dataset//dbpedia";
+			dataset_file_path = "..//Dataset//dbpedia";
+			input_dir = "..//TestFiles//dbpedia//input//";
+			output_dir = "..//TestFiles//dbpedia//output//";
 			dataset_name = "dbpedia";
             width = 9280;
 			depth = 9280;
 			break;
 		case 4:
-			dataset_file_path = "..//..//Dataset//caida";
+			dataset_file_path = "..//Dataset//caida";
+			input_dir = "..//TestFiles//caida//input//";
+			output_dir = "..//TestFiles//caida//output//";
 			dataset_name = "caida";
 			width = 15000;
 			depth = 15000;
