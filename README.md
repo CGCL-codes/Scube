@@ -76,7 +76,7 @@ For more detailed information, please refer to the paper.
 
 # Source Code
 
-The source code of our design Scube is in the folder "ScubeCode", the "readme.md" file in that folder shows how to build it and execute the program 'scube'. Besides, we also provide the baseline codes, TCM and GSS (in folder BaselineCode), and we also provide the "readme.md" file to the folder for illustrating how to build them and run baseline codes.
+The source code of our design Scube is in the folder "ScubeCode", the "README.md" file in that folder shows how to build it and execute the program 'scube.r'. Besides, we also provide the baseline codes, TCM and GSS (in folder BaselineCode), and we also provide the "README.md" file to the folder for illustrating how to build them and run baseline codes.
 
 # Authors and Copyright
 
