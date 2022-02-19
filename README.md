@@ -19,7 +19,7 @@ We implement Scube and conduct comprehensive experiments to evaluate the perform
 
 The figure above shows the architecture of Scube, which mainly contains two components, a high-degree node detector and a summarization storage component. With our low-probability events based probabilistic counting, each unit of the arrays consists of three parts: an *L*-bit vector initialized to zero for estimating the degree of a potential high-degree node, the number of times that the vector updates to 2<sup>*L*</sup> - 1 from zero, and the number of allocated addresses computed by the degree estimation. The summarization storage component is an *m* × *m* compressive matrix *M*. Each bucket in the matrix maintains a pair of fingerprints of an edge and the associated weight value. Initially, Scube allocates two addresses for each node, *i.e.*, four positions of *M* for storing each edge. As high-degree nodes appear, Scube dynamically allocates more addresses and more positions of *M* to store the later coming edges with a high-degree node. When the optional buckets are all occupied, Scube uses a kick-out strategy to guarantee that all edges can be stored in *M*. The number of addresses calculated by the degree estimation may be less than that calculated by the exact degree. Scube explores a feedback mechanism to correct the number of addresses. In the following, we present Scube's low-probability events based probabilistic counting and dynamic address allocation schemes, respectively.
 
-# Low-probability Events based Probabilistic Counting
+# Low-probability Events Based Probabilistic Counting
 <img src="images/Scube-detector.png" width=1000 alt="Detector"/><br/>
 
 Degree estimation in a graph stream is challenging in two aspects. First, maintaining the degree of all the nodes is costly in both memory and computation for a large-scale evolving graph stream. Second, it is difficult to eliminate the influence of duplicate edges which are common in a graph stream. 
@@ -74,7 +74,7 @@ Figure (6) shows the HRs and the FPRs in the high-degree node detector of Scube 
 
 For more detailed information, please refer to the paper.
 
-# Source code
+# Source Code
 
 The source code of our design Scube is in the folder "ScubeCode", the "readme.md" file in that folder shows how to build it and execute the program 'scube'. Besides, we also provide the baseline codes, TCM and GSS (in folder BaselineCode), and we also provide the "readme.md" file to the folder for illustrating how to build them and run baseline codes.
 
