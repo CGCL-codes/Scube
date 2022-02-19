@@ -47,7 +47,7 @@ The figure above shows the process of dynamic address allocation. Initially, all
 # Evaluation Result
 <img src="images/Scube-evaluation.png" width=1000 alt="Scube-Eva"/><br/>
 
-Here, we show some evaluation results on the dataset *dbpedia*, this dataset is the hyperlink network of Wikipedia. Nodes represent pages in Wikipedia and each edge corresponds to a hyperlink. Dbpedia contains 18,268,991 nodes and 172,183,984 edges.
+Here, we show some evaluation results on the dataset *dbpedia*, this dataset is the hyperlink network of Wikipedia, as extracted in DBpedia. Nodes are pages in Wikipedia and edges correspond to hyperlinks (also known as wikilinks). The edges correspond to the <http://dbpedia.org/ontology/wikiPageWikiLink> relationships in DBpedia. This dataset contains 18,268,991 nodes and 172,183,984 edges.
 
 **Edge aggregation weight queries.**
 Figure (1) plots ARE of edge queries on the four datasets. The results show that Scube significantly reduces the ARE of edge queries by several orders of magnitude compared to TCM, even though we construct six matrices for TCM. The AREs of Scube and GSS are the same because they use the same hash function and set the same fingerprint length.
