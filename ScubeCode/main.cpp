@@ -15,9 +15,10 @@ int main(int argc, char* argv[]) {
 	cout << endl << endl;
 #endif
 	int width, depth, fingerprint_length;	// Scube parameters
-	uint16_t k_width, k_depth;				// Scube parameters
 	double alpha = 0.8;						// Scube parameters
 	uint32_t slot_nums, kick_times = 10;	// Scube parameters
+	int ignore_bits = 8, reserved_bits = 2; // Scube parameters
+	double exp_deg;							// Scube parameters
 
 	string head_scube_addr = "";
 	string head_degdetect_addr = "";
@@ -40,9 +41,6 @@ int main(int argc, char* argv[]) {
 	int window = 10;
 	int data_interval = 100;
 	bool ins_bd = false;
-	int ignore_bits = 8;
-	int reserved_bits = 2;
-	double exp_deg;
 	bool time_tp = false;
 	
 	vector<int> win;
@@ -57,23 +55,22 @@ int main(int argc, char* argv[]) {
 		if (strcmp(argv[i], "-fplength") == 0) {
 			fingerprint_length = atoi(argv[++i]);
 		}
-		if (strcmp(argv[i], "-edgefrequence") == 0) {
+		if (strcmp(argv[i], "-edgeweight") == 0) {
 			efflag = 1;
 		}
 		if (strcmp(argv[i], "-edgeexistence") == 0) {
 			eeflag = 1;
 		}
-		if (strcmp(argv[i], "-nodefrequence") == 0) {
+		if (strcmp(argv[i], "-nodeoutweight") == 0) {
 			nfflag = 1;
+			node_query_flag = 1;
+		}
+		if (strcmp(argv[i], "-nodeinweight") == 0) {
+			nfflag = 1;
+			node_query_flag = 2;
 		}
 		if (strcmp(argv[i], "-reachability") == 0) {
 			rpqflag = 1;
-		}
-		if (strcmp(argv[i], "-out") == 0) {
-			node_query_flag = 1;
-		}
-		if (strcmp(argv[i], "-in") == 0) {
-			node_query_flag = 2;
 		}
 		if (strcmp(argv[i], "-write") == 0) {
 			writeflag = true;
@@ -89,12 +86,6 @@ int main(int argc, char* argv[]) {
         }
 		if (strcmp(argv[i], "-slots") == 0) {
             slot_nums = atoi(argv[++i]);
-        }
-		if (strcmp(argv[i], "-k_width") == 0) {
-            k_width = atoi(argv[++i]);
-        }
-		if (strcmp(argv[i], "-k_depth") == 0) {
-            k_depth = atoi(argv[++i]);
         }
 		if (strcmp(argv[i], "-win") == 0) {
             window = atoi(argv[++i]);
@@ -204,7 +195,7 @@ int main(int argc, char* argv[]) {
 	if (writeflag) {
 		string test_situation_dir = head_scube_addr + head_degdetect_addr + dataset_name + "_" + to_string(width) + "x" + to_string(depth) + "_ROOM_" + to_string(ROOM) +
 		"_fp_" + to_string(fingerprint_length) + "_win_" + to_string(window);
-		test_situation_dir += ("_slotnums_" + to_string(slot_nums) + "_SLOTROOM_"+ to_string(SLOTROOM) + "_" + to_string(k_width) + "_" + to_string(k_depth) + "_" + to_string(ignore_bits) + "_" + to_string(reserved_bits) + "_" + to_string(alpha) + back_addr + "//");
+		test_situation_dir += ("_slotnums_" + to_string(slot_nums) + "_SLOTROOM_"+ to_string(SLOTROOM) + "_" + to_string(ignore_bits) + "_" + to_string(reserved_bits) + "_" + to_string(alpha) + back_addr + "//");
 				 
 		output_dir += test_situation_dir;
 		char dir_path[FILENAME_MAX];

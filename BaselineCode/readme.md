@@ -3,61 +3,47 @@
 + TCM
 + GSS
 ----
-The core file of the code is from the website：
-`https://github.com/Puppy95/Graph-Stream-Sketch`
+The code of TCM and GSS in experiment of the paper is downloaded from https://github.com/Puppy95/Graph-Stream-Sketch provided by the GSS authors. 
 
+For more detailed information, please refer to the website.
 
-## makefile
-+ commands
-    1. make
-    2. make clean
+## Build
++ Commands
+    1. ```make```
+    2. ```make clean```
 
-## run
-After executing the 'make' command, we get the two executable files, tcm and gss. 
+## Run
++ After executing the ```make``` command, we get the two executable programs, tcm and gss, which can be run with commands ```./tcm``` or ```./gss```. 
 
-----
+### Configurations
+Some important parameters setting and theirs descriptions are as follows.
+| Command-line parameters | Descriptions                                          |
+|:----------------------- | :---------------------------------------------------- |
+| **-hashnum**            | the number of different hash functions (only for tcm) |
+| **-range**              | the number of positions for each node (only for gss)  |
+| **-candidate**          | the number of positions for each edge (only for gss)  |
+| **-slot**               | the number of entries for each bucket (only for gss)  |
+| **-fplength**           | fingerprint length (only for gss)                     | 
+| **-dataset**            | choose dataset for testing                            |
+| **-width**              | the width of the hash matrix                          |
+| **-depth**              | the depth of the hash matrix                          |
+| **-edgeweight**         | run edge weight query                                 |
+| **-alledge**            | run edge weight query for all edges in the dataset    |
+| **-edgeexistence**      | run edge existence query                              |
+| **-nodeoutweight**      | run node-out aggregated weight query                  |
+| **-nodeinweight**       | run node-in aggregated weight query                   |
+| **-reachability**       | run reachability path query                           |
+| **-dataset_file_path**  | the file path of dataset                              |
+| **-input_dir**          | the folder path of input files                        |
+| **-output_dir**         | the folder path of output files                       |
+| **-win**                | the granularity of the node degrees                   |
+| **-write**              | output test results to file                           |
 
-## Readme file of GSS
+We give a simple example of how to run the scube with these parameters:
+``` code
+e.g. ./tcm -dataset <int> -dataset_file_path <path> -hashnum <int> -width <int> -depth <int> -nodeinweight -input_dir <path> -output_dir <path>
+e.g. ./tcm -dataset 2 -hashnum 6 -nodeinweight -write -width 5658 -depth 5658 -win 1000 -input_dir ../TestFiles/stk/input/node-1k-range-1k/ -output_dir ../TestFiles/stk/output/
 
-Fast and Accurate Graph Stream Summarization
-=======
-GSS.h
-------------
-Graph Stream Sketch user interface:
-* insert: Insert one item
-* edgeQuery: Edge Query
-* transquery: Reachability Query
-* nodeValueQuery: Node Value Query to compute the summary of the weights of all edges with s1. When s1 is the source node,type = 0. s1 is the destination node,type = 1.
-* nodeDegreeQuery: Node  Degree Query to compute the number of the precursors(type=1)/successors(type=0) of s1.
-* nodeSuccessorQuery: Query for the successor of a given node
-* nodePrecursorQuery: Query for the precursor of a given node
-* TriangleCouning: Count the number of triangles in a graph
-Details can be seen in the comments in the code
-
-GSS_label.h
-------------
-Graph Stream Sketch for subgraph matching, revised a bit for label storage. It takes integer as node ID and labels. The node ID should be int type from 1 to n where n is the number of nodes, so is the queried graph. ID map may be needed when using it.
-
-TCM.h
-------------
-TCM user interface:
-* insert : Insert one item
-* edgeQuery(string s1, string s2) : Edge Query
-* transquery: Reachability Query
-* nodeValueQuery: Node Value Query to compute the summary of the weights of all edges
-  with s1. When s1 is the source node,type = 0. s1 is the destination node,type = 1.
-* nodeDegreeQuery: Node  Degree Query to compute the number of the precursors(type=1)/successors(type=0) of s1.
-
-ListGraph.h
-------------
-Adjacency list to store graph
-
-hashfunction.h
-------------
-hashfunction
-
-hashTable.h
-------------
-hashTable
-------------
-The code of TRIEST in experiment of the paper is downloaded from https://github.com/aepasto/triest provided by the authors. The code for SJtree is on https://github.com/Puppy95/timingsubg. Further arrangement of the code will be made before publication.
+e.g. ./gss -dataset <int> -dataset_file_path <path> -range <int> -candidate <int> -slot <int> -fplength <int> -width <int> -depth <int> -nodeinweight -input_dir <path> -output_dir <path>
+e.g. ./gss -dataset 2 -range 4 -candidate 16 -slot 2 -fplength 16 -width 5658 -depth 5658 -nodeinweight -write -win 1000 -input_dir ../TestFiles/stk/input/node-1k-range-1k/ -output_dir ../TestFiles/stk/output/
+```

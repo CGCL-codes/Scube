@@ -10,7 +10,7 @@ scube.r : scube.o
 scube.o : main.cpp
 	$(CXX) -o scube.o -c main.cpp -D SR8 -D ROOM2 $(CFLAGS)
 
-.PHONY:clean
+.PHONY: clean
 clean:
 	-$(RM) scube.r
 	-$(RM) scube.o

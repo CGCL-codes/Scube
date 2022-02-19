@@ -55,23 +55,22 @@ int main(int argc, char* argv[]) {
 		if (strcmp(argv[i], "-fplength") == 0) {
 			fingerprint_length = atoi(argv[++i]);
 		}
-		if (strcmp(argv[i], "-edgefrequence") == 0) {
+		if (strcmp(argv[i], "-edgeweight") == 0) {
 			efflag = 1;
 		}
 		if (strcmp(argv[i], "-edgeexistence") == 0) {
 			eeflag = 1;
 		}
-		if (strcmp(argv[i], "-nodefrequence") == 0) {
+		if (strcmp(argv[i], "-nodeoutweight") == 0) {
 			nfflag = 1;
+			node_query_flag = 1;
+		}
+		if (strcmp(argv[i], "-nodeinweight") == 0) {
+			nfflag = 1;
+			node_query_flag = 2;
 		}
 		if (strcmp(argv[i], "-reachability") == 0) {
 			rpqflag = 1;
-		}
-		if (strcmp(argv[i], "-out") == 0) {
-			node_query_flag = 1;
-		}
-		if (strcmp(argv[i], "-in") == 0) {
-			node_query_flag = 2;
 		}
 		if (strcmp(argv[i], "-write") == 0) {
 			writeflag = true;
