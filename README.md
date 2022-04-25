@@ -78,6 +78,10 @@ For more detailed information, please refer to the paper.
 
 The source code of our design Scube is in the folder "ScubeCode", the "README.md" file in that folder shows how to build it and execute the program 'scube.r'. Besides, we also provide the baseline codes, TCM and GSS (in folder BaselineCode), and we also provide the "README.md" file to the folder for illustrating how to build them and run baseline codes.
 
+# Publications
+
+If you want to know more detailed information, please refer to this paper: Ming Chen, Renxiang Zhou, Hanhua Chen, Hai Jin. Scube: Efficient Summarization for Skewed Graph Streams. in Proceedings of the 42nd IEEE International Conference on Distributed Computing Systems (ICDCS 2022), Bologna, Italy, July 10-13, 2022.
+
 # Authors and Copyright
 
 Scube is developed in National Engineering Research Center for Big Data Technology and System, Cluster and Grid Computing Lab, Services Computing Technology and System Lab, School of Computer Science and Technology, Huazhong University of Science and Technology, Wuhan, China by Ming Chen (mingc@hust.edu.cn), Renxiang Zhou (mr\_zhou@hust.edu.cn), Hanhua Chen (chen@hust.edu.cn), Hai Jin (hjin@hust.edu.cn).
