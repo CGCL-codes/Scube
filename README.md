@@ -78,7 +78,7 @@ The source code of our design Scube is in the folder "ScubeCode", the "README.md
 
 # Publications
 
-If you want to know more detailed information, please refer to this paper:
+If you want to know more detailed information, please refer to this paper: 
 Ming Chen, Renxiang Zhou, Hanhua Chen, Hai Jin. Scube: Efficient Summarization for Skewed Graph Streams. in Proceedings of the 42nd IEEE International Conference on Distributed Computing Systems (ICDCS 2022), Bologna, Italy, July 10-13, 2022.
 
 # Authors and Copyright
