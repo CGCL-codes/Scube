@@ -72,8 +72,6 @@ We also examine the accuracy of the high-degree node detector in Scube, mainly i
 
 Figure (6) shows the HRs and the FPRs in the high-degree node detector of Scube on the four datasets. The results indicate that the identification accuracy of high-degree nodes is high while the FPR is very low. This demonstrates that our low-probability events based probabilistic counting is reliable. 
 
-For more detailed information, please refer to the paper.
-
 # Source Code
 
 The source code of our design Scube is in the folder "ScubeCode", the "README.md" file in that folder shows how to build it and execute the program 'scube.r'. Besides, we also provide the baseline codes, TCM and GSS (in folder BaselineCode), and we also provide the "README.md" file to the folder for illustrating how to build them and run baseline codes.
